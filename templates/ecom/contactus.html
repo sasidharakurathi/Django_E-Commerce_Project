@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en" dir="ltr">
+
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  <title>Online Shopping</title>
+
+  <style>
+    input[type="text"], input[type="email"], textarea {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #00acc1;
+      border-radius: 8px;
+      font-size: 16px;
+      margin-bottom: 15px;
+      transition: all 0.3s ease;
+      background: rgba(255, 255, 255, 0.9);
+    }
+
+    input[type="text"]:focus, input[type="email"]:focus, textarea:focus {
+      border-color: #1a237e;
+      box-shadow: 0 0 0 3px rgba(26, 35, 126, 0.1);
+      outline: none;
+      background: rgba(255, 255, 255, 1);
+    }
+
+    label {
+      font-weight: 600;
+      color: #1a237e;
+      margin-bottom: 8px;
+      display: block;
+    }
+  </style>
+
+</head>
+
+<body style="background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%); min-height: 100vh; padding: 20px 0;">
+
+  {%if request.user.is_authenticated%}
+    {% include "ecom/customer_navbar.html" %}
+  {%else%}
+    {% include "ecom/navbar.html" %}
+  {%endif%}
+
+  <center>
+    <div style="background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border-radius: 16px; padding: 40px; margin: 40px auto; max-width: 600px; box-shadow: 0 16px 48px rgba(26, 35, 126, 0.2);">
+      <h3 style="color: #1a237e; font-weight: 700; margin-bottom: 30px; font-size: 28px;">Send Us Your Valuable Feedback !</h3>
+
+      <form method="POST">
+        <!-- Very Important csrf Token -->
+        {% csrf_token %}
+        <div class="form-group" style="color: #212121;">
+          <div style="text-align: left; margin-bottom: 20px;">
+            {{ form.as_p }}
+          </div>
+          <br>
+          <input type="submit" value="Send Message" style="background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%); color: white; border: none; padding: 14px 40px; border-radius: 12px; font-size: 18px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 16px rgba(26, 35, 126, 0.3); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(26, 35, 126, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 16px rgba(26, 35, 126, 0.3)'">
+        </div>
+      </form>
+    </div>
+  </center>
+  {% include "ecom/footer.html" %}
+</body>
+</html>

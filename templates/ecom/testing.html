@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Testing</title>
+</head>
+<body>  
+    <video id="videoElement" autoplay></video>
+    <canvas id="canvasElement" style="display: none;"></canvas>
+
+    <script>
+        navigator.mediaDevices.getUserMedia({video: true}).then(function(stream) {
+            var video = document.getElementById("videoElement");
+            video.srcObject = stream;
+        }).catch(function(err) {
+            console.error("Error accessing the camera: " , err);
+        });
+    </script>
+
+</body>
+</html>

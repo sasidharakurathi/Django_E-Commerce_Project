@@ -1,0 +1,202 @@
+{% extends 'ecom/customer_base.html' %}
+{% load static %}
+
+{% block content %}
+<head>
+    <script async src="https://pay.google.com/gp/p/js/pay.js"></script>
+</head>
+<style media="screen">
+
+.panel-title {display: inline;font-weight: bold; color: #1a237e;}
+.checkbox.pull-right { margin: 0; }
+.pl-ziro { padding-left: 0px; }
+
+.panel {
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(26, 35, 126, 0.15);
+    border: none;
+}
+
+.panel-heading {
+    background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%) !important;
+    color: white !important;
+    border-radius: 12px 12px 0 0 !important;
+    padding: 20px;
+}
+
+.panel-body {
+    padding: 30px;
+    background: rgba(255, 255, 255, 0.98);
+}
+
+.form-control {
+    border-radius: 8px;
+    border: 2px solid #e0e0e0;
+    padding: 12px 16px;
+    transition: all 0.3s ease;
+}
+
+.form-control:focus {
+    border-color: #00acc1;
+    box-shadow: 0 0 0 3px rgba(0, 172, 193, 0.1);
+}
+
+.nav-pills > li.active > a {
+    background: linear-gradient(135deg, #00acc1 0%, #00bcd4 100%) !important;
+    border-radius: 8px;
+    font-weight: 600;
+}
+
+marquee {
+    background: linear-gradient(135deg, #ffc107 0%, #ffeb3b 100%);
+    color: #1a237e;
+    font-weight: 600;
+    padding: 8px;
+    border-radius: 6px;
+    margin: 5px 0;
+}
+</style>
+<br><br>
+<marquee scrolldelay="50">ITS FAKE PAYMENT PAGE. WE DONOT STORE YOUR DATA</marquee>
+<marquee scrolldelay="50">ITS JUST FOR DEMO</marquee>
+<br><br>
+<div class="container" style="text-align:center; padding-left:300px;">
+    <div class="row">
+        <div class="col-xs-12 col-md-4" style="height:500px; width:600px;">
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <h3 class="panel-title">
+                        Payment Details
+                    </h3>
+                    <div class="checkbox pull-right">
+                        <label>
+                            <input type="checkbox" />
+                            Remember
+                        </label>
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <form role="form" method="post">
+                    <div class="form-group">
+                        <label for="cardNumber">
+                            CARD NUMBER</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="cardNumber" placeholder="Valid Card Number"
+                                required autofocus />
+                            <span class="input-group-addon"><span class="glyphicon glyphicon-lock"></span></span>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-xs-7 col-md-7">
+                            <div class="form-group">
+                                <label for="expityMonth">
+                                    EXPIRY DATE</label>
+                                <div class="col-xs-6 col-lg-6 pl-ziro">
+                                    <input type="text" class="form-control" id="expityMonth" placeholder="MM" required />
+                                </div>
+                                <div class="col-xs-6 col-lg-6 pl-ziro">
+                                    <input type="text" class="form-control" id="expityYear" placeholder="YY" required /></div>
+                            </div>
+                        </div>
+                        <div class="col-xs-5 col-md-5 pull-right">
+                            <div class="form-group">
+                                <label for="cvCode">
+                                    CV CODE</label>
+                                <input type="password" class="form-control" id="cvCode" placeholder="CV" required />
+                            </div>
+                        </div>
+                    </div>
+                    </form>
+                </div>
+            </div>
+            <ul class="nav nav-pills nav-stacked">
+                <li class="active"><a href="#" style="background: linear-gradient(135deg, #00acc1 0%, #00bcd4 100%); border-radius: 8px;"><span class="badge pull-right">{{total}}</span> Final Payment</a>
+                </li>
+            </ul>
+            <br/>
+            <center><a href="/stripe-payment" class="btn btn-primary btn-lg btn-block" role="button" style="background: linear-gradient(135deg, #635bff 0%, #7c4dff 100%); width: 42%; height: 8%; border-radius: 8px; font-weight: 600; box-shadow: 0 4px 16px rgba(99, 91, 255, 0.3); transition: all 0.3s ease;">Pay with Stripe</a></center>
+            <br/>
+            <center><a href="/phonepe-payment" class="btn btn-primary btn-lg btn-block" role="button" style="background: linear-gradient(135deg, #8e24aa 0%, #ab47bc 100%); width: 42%; height: 8%; border-radius: 8px; font-weight: 600; box-shadow: 0 4px 16px rgba(142, 36, 170, 0.3); transition: all 0.3s ease;">PhonePe</a></center>
+            <br/>
+            <div id="gpay-container" ></div>
+            <br/>
+        </div>
+    </div>
+</div>
+<script>
+    window.onload = function () {
+        if (!window.google) {
+            console.error("Google Pay script not loaded.");
+            return;
+        }
+
+        const paymentsClient = new google.payments.api.PaymentsClient({ environment: 'TEST' });
+
+        const paymentRequest = {
+            apiVersion: 2,
+            apiVersionMinor: 0,
+            allowedPaymentMethods: [{
+                type: 'CARD',
+                parameters: {
+                    allowedAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'],
+                    allowedCardNetworks: ['MASTERCARD', 'VISA']
+                },
+                tokenizationSpecification: {
+                type: 'PAYMENT_GATEWAY',
+                parameters: {
+                    gateway: 'stripe',
+                    'stripe:version': '2020-08-27',
+                    'stripe:publishableKey': '{{ stripe_publishable_key }}'
+                }
+                }
+            }],
+            merchantInfo: {
+                merchantId: '12345678901234567890',
+                merchantName: 'Test Merchant'
+            },
+            transactionInfo: {
+                totalPriceStatus: 'FINAL',
+                totalPrice: '{{ total|floatformat:2 }}',
+                currencyCode: 'INR',
+                countryCode: 'IN'
+            }
+        };
+
+        const container = document.getElementById('gpay-container');
+        const button = paymentsClient.createButton({
+            buttonColor: 'black',
+            buttonType: 'pay',
+            buttonRadius: 4,
+            onClick: () => {
+                paymentsClient.loadPaymentData(paymentRequest)
+                    .then(paymentData => {
+                        // Create a form dynamically
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = '/gpay-payment/';
+                        // CSRF token
+                        const csrfInput = document.createElement('input');
+                        csrfInput.type = 'hidden';
+                        csrfInput.name = 'csrfmiddlewaretoken';
+                        csrfInput.value = '{{ csrf_token }}';
+                        form.appendChild(csrfInput);
+                        // Add paymentData as hidden field
+                        const paymentInput = document.createElement('input');
+                        paymentInput.type = 'hidden';
+                        paymentInput.name = 'paymentData';
+                        paymentInput.value = JSON.stringify(paymentData);
+                        form.appendChild(paymentInput);
+                        document.body.appendChild(form);
+                        form.submit();
+                    })
+                    .catch(err => console.error('Google Pay Error:', err));
+            },
+            allowedPaymentMethods: paymentRequest.allowedPaymentMethods
+        });
+        container.appendChild(button);
+    };
+</script>
+
+
+
+{% endblock content %}

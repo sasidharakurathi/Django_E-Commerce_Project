@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+{% load widget_tweaks %}
+<html lang="en" dir="ltr">
+    <head>
+        <meta charset="utf-8">
+        <title>Online Shopping</title>
+        <script src="https://code.jquery.com/jquery-3.7.1.js" integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4=" crossorigin="anonymous"></script>
+        <style media="screen">
+            body {
+                margin: 0;
+                padding: 0;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%);
+                min-height: 100vh;
+            }
+
+            .box {
+                width: 70%;
+                height: 60%;
+                padding: 40px;
+                position: absolute;
+                top: 55%;
+                left: 50%;
+                background: rgba(255, 255, 255, 0.95);
+                backdrop-filter: blur(10px);
+                text-align: center;
+                transition: all 0.3s ease;
+                border-radius: 16px;
+                box-shadow: 0 16px 48px rgba(26, 35, 126, 0.2);
+                transform: translate(-50%, -50%);
+                
+                display: flex;
+                flex-direction: row;
+                justify-content: space-around;
+                
+            }
+
+            .video-cam {
+                
+                width: 49%;
+                height: auto; /* or set a fixed height if needed */
+                position: relative;
+                margin-right: 10px;
+                box-shadow: 0px 10px 16px rgba(0, 0, 0, 0.3); /* X-offset, Y-offset, blur, color */
+                border-radius: 18px; /* Optional: for rounded corners */
+            }
+
+            .video-cam video {
+                width: 100%;
+                height: 100%;
+                object-fit: contain; /* use 'contain' if you want full visibility */
+                box-shadow: 0px 10px 16px rgba(0, 0, 0, 0.3); /* X-offset, Y-offset, blur, color */
+                border-radius: 18px; /* Optional: for rounded corners */
+
+            }
+
+            
+            .options {
+                background-color: blue;
+                width: 50%;
+                margin-right: 10px;
+
+                background: rgba(25, 35, 126, 0.95);
+                backdrop-filter: blur(10px);
+                text-align: center;
+                transition: all 0.3s ease;
+                border-radius: 16px;
+                box-shadow: 0 16px 48px rgba(26, 35, 126, 0.2);
+                
+            }
+
+            .welcome-user {
+                height: 40%;
+                width: auto;
+                display: flex;
+                align-items: center; /* Optional: vertically centers items */
+                flex-direction: column;
+
+            }
+
+            .camera-controls {
+                height: 30%;
+                width: auto;
+                display: flex;
+                justify-content: space-around;
+                align-items: center; /* Optional: vertically centers items */
+
+                
+            }
+
+            .login-div {
+                height: 30%;
+                width: auto;
+                display: flex;
+                justify-content: space-around;
+                align-items: center; /* Optional: vertically centers items */
+
+            }
+
+            .welcome-user > .welcome-content {
+                color: rgba(255, 255, 255, 0.95);
+                text-transform: uppercase;
+                font-weight: 700;
+                margin-bottom: 10px;
+            }
+
+            .camera-controls > button , .login-div > button {
+                border: 0;
+                color: linear-gradient(135deg, #1a237e 0%, #3949ab 100%);
+                background: rgba(255, 255, 255, 0.95);
+                display: block;
+                margin: 20px auto;
+                text-align: center;
+                padding: 14px 20px;
+                outline: none;
+                
+                border-radius: 12px;
+                transition: all 0.3s ease;
+                cursor: pointer;
+                font-weight: 600;
+                font-size: 16px;
+                box-shadow: 0 4px 16px rgba(26, 35, 126, 0.3);
+            }
+
+            .camera-controls > button:hover , .login-div > button:hover{
+                background: rgba(255, 255, 255, 0.75);
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(26, 35, 126, 0.4);
+            }
+            
+
+            .loader {
+                border: 6px solid #f3f3f3;
+                border-top: 6px solid #3498db;
+                border-radius: 50%;
+                width: 40px;
+                height: 40px;
+                animation: spin 1s linear infinite;
+                margin: 20px auto;
+                }
+
+                @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+                }
+
+
+        </style>
+
+        <script>
+
+            let isSending = false;
+            let captureCount = 0;
+
+            const startCamera = () => {
+                const video = document.getElementById("video");
+                video.style.visibility = "visible";
+                if(navigator.mediaDevices.getUserMedia) {
+                    navigator.mediaDevices.getUserMedia({video: true}).then((stream) => {
+                        video.srcObject = stream;
+                    }).catch((err) => {
+                        if(navigator.permissions) {
+                            navigator.permissions.query({name: 'camera'}).then((result) => {
+                                if(result.state === 'denied') {
+                                    alert("Camera access is blocked. Please enable it in your browser settings.");
+                                } else {
+                                    console.error(err);
+                                    alert("Something went wrong\n" + err);
+                                }
+                            })
+                        }
+
+                    });
+                }
+            };
+
+            const stopCamera = () => {
+                const video = document.getElementById('video');
+                const stream = video.srcObject;
+                const tracks = stream.getTracks();
+                tracks.forEach(track => track.stop());
+                video.srcObject = null;
+                video.style.visibility = "hidden";
+            };
+
+            const sendFrame = () => {
+                if(!isSending) {
+                    isSending = true;
+                    const countH4 = document.getElementById("capture-count");
+                    const video = document.getElementById("video");
+                    const canvas = document.createElement("canvas");
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+
+                    const ctx = canvas.getContext("2d");
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                    const dataURL = canvas.toDataURL("image/jpeg"); // base64-encoded image
+                    // console.log(dataURL);
+                    $.ajax({
+                        type: "POST",
+                        url: "http://127.0.0.1:8000/register_face/save_frame/",
+                        data: JSON.stringify({ image: dataURL ,userid: {{userid}} , count: captureCount}),
+                        contentType: "application/json",
+                        success: function (data) {
+                            if(data.isFrameSaved) {
+                                countH4.innerText = `Capture Count ${++captureCount}/5`;
+                                document.getElementById("loader").style.display = "none";
+                                document.getElementById("send-frame-button").style.display = "block";
+                                
+                                if(captureCount == 5)  {
+                                    document.getElementById("send-frame-button").style.display = "none";
+                                    document.getElementById("login-button").style.display = "block";
+                                }
+                            }
+
+                        },
+                        error: function (err) {
+                            console.error("Error:", err);
+                        },
+                        complete: function () {
+                            isSending = false;  // Allow next frame after completion
+                        }
+                    });
+                }
+            };
+
+            const captureFrame = () => {
+                document.getElementById("send-frame-button").style.display = "none";
+                document.getElementById("loader").style.display = "block";
+                if(captureCount < 6) {
+                    sendFrame();
+                }
+            }
+
+            {% comment %} const login = () => {
+                if(isloggedIn) {
+                    window.location.href = '/customer-home';
+                } else {
+                    alert("Face not Recognized")
+                }
+            } {% endcomment %}
+
+            $(document).ready(() => {
+                startCamera();
+                console.log({{userid}});
+            });
+
+            {% comment %} setInterval(() => {
+                if(!isloggedIn) {
+                    sendVideo();
+                    /*console.log("Sending Videos");*/
+                }
+            } , 500); {% endcomment %}
+        </script>
+
+    </head>
+    <body>
+        {% include "ecom/navbar.html" %}
+
+        {% comment %} <form class="box" method="post">
+            {% csrf_token %}
+            <h1>Customer Login</h1>
+            <p class="text-muted"> Please enter your login and password!</p>
+            {% render_field form.username class="form-control" placeholder="Username" %}
+            {% render_field form.password class="form-control" placeholder="Password" %}
+            <input type="submit" value="Login">
+            <a class="face-login" href="/face-login" >Face Login</a>
+        </form> {% endcomment %}
+
+        <div class="box">
+            <div class="video-cam">
+                <video id="video" width="640px" height="360px" autoplay></video>
+            </div>
+            <div class="options">
+                <div class="welcome-user">
+                    <h1 id="welcome-heading" class="welcome-content">Set Up Face Login</h1>
+                    <h4 id="capture-count" class="welcome-content" >Capture Count 0/5</h4>
+                </div>
+                <div class="camera-controls">
+                    <button onclick="startCamera()">Start Camera</button>
+                    <button onclick="stopCamera()">Stop Camera</button>
+                </div>
+                <div class="login-div">
+                    <button id="send-frame-button" onclick="captureFrame()">Capture</button>
+                    <button id="login-button" onclick="window.location.href = '/customerlogin';" style="display: none;">Login</button>
+                    <div class="loader" id="loader" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+
+        <br><br><br><br><br><br><br><br><br>
+        <br><br><br><br><br><br><br><br><br>
+        <br><br><br><br><br><br><br><br><br>
+        {% include "ecom/footer.html" %}
+    </body>
+
+</html>

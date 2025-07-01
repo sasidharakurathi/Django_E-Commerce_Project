@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en" dir="ltr">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>Online Shopping</title>
+
+  <title>Online Shopping</title>
+  <style media="screen">
+    .footer{
+      position: fixed;
+    }
+  </style>
+</head>
+
+<body style="background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%); min-height: 100vh; padding: 20px 0;">
+  {%if request.user.is_authenticated%}
+    {% include "ecom/customer_navbar.html" %}
+  {%else%}
+    {% include "ecom/navbar.html" %}
+  {%endif%}
+  <br><br><br>
+<div style="background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border-radius: 16px; padding: 40px; margin: 40px auto; max-width: 800px; box-shadow: 0 16px 48px rgba(26, 35, 126, 0.2);">
+  <h2 style="text-align:center; color: #1a237e; font-weight: 700; margin-bottom: 30px; font-size: 32px;">About Us</h2>
+  <p style="text-align:center; color: #212121; font-size: 18px; line-height: 1.6; margin-bottom: 20px;">
+    Welcome to our Online Shopping Platform! We are dedicated to providing you with the best shopping experience possible.
+  </p>
+  <p style="text-align:center; color: #666666; font-size: 16px; line-height: 1.6;">
+    Lorem ipsum dolor sit amet consectetur adipisicing elit. Dicta explicabo ad, non veritatis, fugiat et nulla tenetur aperiam deleniti nesciunt dolore? Quae dolorem molestiae distinctio, libero iste fugit quisquam iure.</p>
+  <div style="text-align: center; margin-top: 30px;">
+    <div style="display: inline-block; background: linear-gradient(135deg, #00acc1 0%, #00bcd4 100%); color: white; padding: 12px 24px; border-radius: 8px; font-weight: 600;">
+      🛍️ Quality Products • 🚚 Fast Delivery • 💯 Customer Satisfaction
+    </div>
+  </div>
+</div>
+<br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
+  {% include "ecom/footer.html" %}
+</body>
+</html>
