@@ -1,0 +1,113 @@
+
+-----------------Resume Text------------------
+THOTASATISHBABU Vijayawada,AndhraPradesh,Indiathotasatishbabub6@gmail.com+919492287814 Profiles GitHubLinkedin CareerObjective Iamafastlearnerwiththeabilitytoadapttoanyenvironment.Ihaveastronginterestinlearningnew technologiesandameagertoworkwithateam.Ialsopossessleadershipqualitiesandcantakeon responsibilitieswhenneeded.MygoalistocontributeeffectivelytothecompanyIjoin.Iamcommittedto continuouslygrowingandimprovinginmyrole. Education BachelorofTechnologyinComputerScienceEngineering(CSE) PottiSriramuluChaluvadiMallikarjunaRaoCollegeofEngineeringandTechnologyAffiliatedby JNTUKSeptember2022Present Intermediate(10+2) SyedAppalaSwamyCollegeSeptember2020May2022 SSC(10thGrade) S.D.M.Y.R.RHighSchool,SSCBoardJuly2019April2020 Skills Programming:C,Python,Java WebDevelopment:HTML,CSS,JavaScript,PHP EmbeddedSystems:Arduino,NodeMCU,RaspBerryPi Cybersecurity:EthicalHacking,Cryptography Databases:MySQL,SQLite,Firebase OtherTools:Git,XAMPP,QuartusPrime,TinkerCad,Fritzing SoftSkills:Problem-Solving,Teamwork,Leadership Projects 1.SecurityPolicyManagementSystem(Github) DevelopedaPythonTkinterUIapplicationtomanageorganizationalpolicies. ImplementedSHA-256encryption,2-stepemailverification,andSQLitedatabase. 2.AIVOICEAssistantrobot Designedarobottoworkwithvoicecommandsusingpythoncode ControlledtherobotusingArduinonanoviaserialcommunication 3.ESP32-CAMTelegramBot DesignedanESP32-CAMsystemthattorecognizethefaceforsecurityalsocaptureandsend imagesviaaTelegrambot. UsedFirebaseTelegramAPIforseamlessinteraction. 4.ControllingAppliances DesignedaSystemtocontroltheappliancesusingtheMobilePhone AutomaticturnoffandturnonSystembasedontheconditions Internships CybersecurityInternSuprajaTechnologies WorkedonaProjectnamedasSecurityPolicyManagement. SecurityPolicyManagementisthetooldevelopedbypythonforwindowsfororganizations. InternetofthingsInternEduinoRobots WorkedondifferentkindsofprojectsbasedontheInternetofthings. FewoftheprojectsthatIworkedareHomeAutomation,Facerecognition,ChildSecurityDevice. CertificationsAchievements Qualifiedto2ndstageinEyantraCompetitionconductedbyIITBombay2024 PythonBasicCertificatefromHackerRank ExcellenceCertificateinCyberacehackathonconductedbySuprajaTechnologies PythonProgrammingcoursecompletioncertificateincodetantra. ExtracurricularActivities ParticipatedincodeDecode,RowBoaticscompetitionTechfest2024ofIITBombay ParticipatedintheIoTInventorsWorkshopconductedbyEduinoRobots ParticipatedintheAppDevelopmentworkshopinTechfest2024 ParticipatedintheCyberSecurityWorkshopconductedbySuprajaTechnologies Languages 1.Telugu2.English3.Hindi Declaration Iherebydeclarethattheabovegiveninformationistruetomyknowledgeandbelief. Date: Signature: Place:Vijayawada ThotaSatishBabu
+---------------------------------------------------
+
+-----------------RAW LLM RESPONSE------------------
+Software Developer - Supraja Technologies (Not specified)
+Worked on a project named Security Policy Management, developed by Python for Windows for organizations.
+
+No professional experience found
+---------------------------------------------------
+
+-----------------Cleaned Experience------------------
+Software Developer - Supraja Technologies (Not specified)
+Worked on a project named Security Policy Management, developed by Python for Windows for organizations.
+---------------------------------------------------
+
+-----------------RAW LLM RESPONSE------------------
+{
+    "first_job_start_year": 0,
+    "last_job_end_year": 0,
+    "total_jobs_count": 1
+}
+---------------------------------------------------
+
+-----------------RAW LLM RESPONSE------------------
+{
+    "candidate_name": "Thotasatishbabu",
+    "overall_score": 72,
+    "skills_match": 60,
+    "experience_relevance": 40,
+    "education": 80,
+    "keywords_match": 50,
+    "overall_fit": 70,
+    "matching_skills": ["Python", "Java", "C", "HTML", "CSS", "JavaScript", "Git"],
+    "missing_skills": ["TCP/IP", "DNS", "DHCP", "Routing protocols", "Cisco", "Juniper", "Network monitoring tools (e.g., Wireshark, SolarWinds)", "Cloud networking (AWS, Azure)"],
+    "matching_experience": [],
+    "experience_gaps": ["Network administration experience", "Troubleshooting and problem-solving skills in a network environment"],
+    "education_highlights": ["Bachelor of Technology in Computer Science Engineering (CSE) from Potti Sriramulu Chaluvadi Mallikarjuna Rao College of Engineering and Technology"],
+    "strengths": ["Problem-Solving", "Teamwork", "Leadership"],
+    "weaknesses": ["Lack of experience in network administration and troubleshooting", "Limited knowledge of advanced networking concepts"],
+    "growth_potential": 60,
+    "cultural_fit_indicators": [],
+    "salary_expectation_alignment": "MEDIUM",
+    "recommendation": "CONSIDER",
+    "recommendation_reason": "Candidate has some relevant skills, but lacks experience and knowledge in key areas.",
+    "summary": "Thotasatishbabu is a recent graduate with a degree in Computer Science Engineering. He has some programming skills and experience with Python, Java, and C. However, he lacks experience in network administration and troubleshooting, which are critical for the Network Analyst role.",
+    "interview_focus_areas": ["Network administration and troubleshooting", "Advanced networking concepts"],
+    "matching_skills_count": 7,
+    "missing_skills_count": 8,
+    "relevant_experience_years": 0,
+    "education_level_code": 3
+}
+---------------------------------------------------
+
+-----------------Resume Text------------------
+THOTASATISHBABU Vijayawada,AndhraPradesh,Indiathotasatishbabub6@gmail.com+919492287814 Profiles GitHubLinkedin CareerObjective Iamafastlearnerwiththeabilitytoadapttoanyenvironment.Ihaveastronginterestinlearningnew technologiesandameagertoworkwithateam.Ialsopossessleadershipqualitiesandcantakeon responsibilitieswhenneeded.MygoalistocontributeeffectivelytothecompanyIjoin.Iamcommittedto continuouslygrowingandimprovinginmyrole. Education BachelorofTechnologyinComputerScienceEngineering(CSE) PottiSriramuluChaluvadiMallikarjunaRaoCollegeofEngineeringandTechnologyAffiliatedby JNTUKSeptember2022Present Intermediate(10+2) SyedAppalaSwamyCollegeSeptember2020May2022 SSC(10thGrade) S.D.M.Y.R.RHighSchool,SSCBoardJuly2019April2020 Skills Programming:C,Python,Java WebDevelopment:HTML,CSS,JavaScript,PHP EmbeddedSystems:Arduino,NodeMCU,RaspBerryPi Cybersecurity:EthicalHacking,Cryptography Databases:MySQL,SQLite,Firebase OtherTools:Git,XAMPP,QuartusPrime,TinkerCad,Fritzing SoftSkills:Problem-Solving,Teamwork,Leadership Projects 1.SecurityPolicyManagementSystem(Github) DevelopedaPythonTkinterUIapplicationtomanageorganizationalpolicies. ImplementedSHA-256encryption,2-stepemailverification,andSQLitedatabase. 2.AIVOICEAssistantrobot Designedarobottoworkwithvoicecommandsusingpythoncode ControlledtherobotusingArduinonanoviaserialcommunication 3.ESP32-CAMTelegramBot DesignedanESP32-CAMsystemthattorecognizethefaceforsecurityalsocaptureandsend imagesviaaTelegrambot. UsedFirebaseTelegramAPIforseamlessinteraction. 4.ControllingAppliances DesignedaSystemtocontroltheappliancesusingtheMobilePhone AutomaticturnoffandturnonSystembasedontheconditions Internships CybersecurityInternSuprajaTechnologies WorkedonaProjectnamedasSecurityPolicyManagement. SecurityPolicyManagementisthetooldevelopedbypythonforwindowsfororganizations. InternetofthingsInternEduinoRobots WorkedondifferentkindsofprojectsbasedontheInternetofthings. FewoftheprojectsthatIworkedareHomeAutomation,Facerecognition,ChildSecurityDevice. CertificationsAchievements Qualifiedto2ndstageinEyantraCompetitionconductedbyIITBombay2024 PythonBasicCertificatefromHackerRank ExcellenceCertificateinCyberacehackathonconductedbySuprajaTechnologies PythonProgrammingcoursecompletioncertificateincodetantra. ExtracurricularActivities ParticipatedincodeDecode,RowBoaticscompetitionTechfest2024ofIITBombay ParticipatedintheIoTInventorsWorkshopconductedbyEduinoRobots ParticipatedintheAppDevelopmentworkshopinTechfest2024 ParticipatedintheCyberSecurityWorkshopconductedbySuprajaTechnologies Languages 1.Telugu2.English3.Hindi Declaration Iherebydeclarethattheabovegiveninformationistruetomyknowledgeandbelief. Date: Signature: Place:Vijayawada ThotaSatishBabu
+---------------------------------------------------
+
+-----------------RAW LLM RESPONSE------------------
+Software Engineer - Supraja Technologies (Not specified)
+Worked on a Project named as Security Policy Management.
+
+Cybersecurity Intern - Eduino Robots (Not specified)
+Worked on different kinds of projects based on the Internet of things. Few of the projects that I worked are Home Automation, Face recognition, Child Security Device.
+
+No professional experience found
+---------------------------------------------------
+
+-----------------Cleaned Experience------------------
+Software Engineer - Supraja Technologies (Not specified)
+Worked on a Project named as Security Policy Management.
+Cybersecurity Intern - Eduino Robots (Not specified)
+Worked on different kinds of projects based on the Internet of things. Few of the projects that I worked are Home Automation, Face recognition, Child Security Device.
+---------------------------------------------------
+
+-----------------RAW LLM RESPONSE------------------
+{
+    "first_job_start_year": 0,
+    "last_job_end_year": 0,
+    "total_jobs_count": 0
+}
+---------------------------------------------------
+
+-----------------RAW LLM RESPONSE------------------
+{
+    "candidate_name": "Thotasatishbabu",
+    "overall_score": 65,
+    "skills_match": 55,
+    "experience_relevance": 40,
+    "education": 70,
+    "keywords_match": 50,
+    "overall_fit": 60,
+    "matching_skills": ["Python", "Java", "C", "HTML", "CSS", "JavaScript", "Git", "XAMPP"],
+    "missing_skills": ["TCP/IP", "DNS", "DHCP", "Routing protocols", "Cisco", "Juniper", "Network monitoring tools (e.g., Wireshark, SolarWinds)", "Cloud networking (AWS, Azure)"],
+    "matching_experience": ["SecurityPolicyManagementSystem", "AIVOICEAssistantrobot", "ESP32-CAMTelegramBot", "ControllingAppliances"],
+    "experience_gaps": ["Network hardware configuration and maintenance", "Collaboration with cybersecurity teams to enforce network security protocols"],
+    "education_highlights": ["Bachelor of Technology in Computer Science Engineering (CSE)"],
+    "strengths": ["Problem-solving skills", "Teamwork", "Leadership qualities"],
+    "weaknesses": ["Lack of experience in network hardware configuration and maintenance", "Limited knowledge of cloud networking and SD-WAN"],
+    "growth_potential": 60,
+    "cultural_fit_indicators": [],
+    "salary_expectation_alignment": "MEDIUM",
+    "recommendation": "CONSIDER",
+    "recommendation_reason": "Candidate has some relevant skills and experience, but lacks key qualifications for the role.",
+    "summary": "Thotasatishbabu is a recent graduate with a strong background in programming languages and web development. He has some experience with cybersecurity and IoT projects, but needs to develop his skills further to meet the requirements of this Network Analyst position.",
+    "interview_focus_areas": ["Network hardware configuration and maintenance", "Cloud networking and SD-WAN"],
+    "matching_skills_count": 7,
+    "missing_skills_count": 8,
+    "relevant_experience_years": 0,
+    "education_level_code": 3
+}
+---------------------------------------------------

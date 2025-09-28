@@ -49,8 +49,8 @@ A comprehensive e-commerce platform built with Django featuring face recognition
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/django-ecommerce-face-recognition.git
-   cd django-ecommerce-face-recognition
+   git clone https://github.com/sasidharakurathi/Django_E-Commerce_Project.git
+   cd Django_E-Commerce_Project
    ```
 
 2. **Create virtual environment**
@@ -64,18 +64,17 @@ A comprehensive e-commerce platform built with Django featuring face recognition
    source venv/bin/activate
    ```
 
+
 3. **Install dependencies**
    ```bash
-   pip install -r requirement.txt
+   pip install -r requirements.txt
    ```
 
 4. **Environment Configuration**
    ```bash
    # Copy environment template
    cp .env.example .env
-   
-   # Edit .env file with your configuration
-   # Add your email, PayPal, and other service credentials
+   # Edit .env with your credentials (see .env.example for all options)
    ```
 
 5. **Database Setup**
@@ -102,21 +101,20 @@ A comprehensive e-commerce platform built with Django featuring face recognition
 
 ### Environment Variables
 
-Create a `.env` file in the root directory with the following variables:
+All sensitive credentials (API keys, DB passwords, email, payment gateway keys, etc.) are loaded from a `.env` file. See `.env.example` for all required variables. **Never commit your real `.env` to a public repo.**
 
-```env
-# Django Configuration
-SECRET_KEY=your-secret-key-here
-DEBUG=True
+### Requirements
 
-# Email Configuration
-EMAIL_HOST_USER=your-email@gmail.com
-EMAIL_HOST_PASSWORD=your-app-password
-EMAIL_RECEIVING_USER=your-email@gmail.com
-
-# PayPal Configuration
-PAYPAL_RECEIVER_EMAIL=your-paypal@business.com
+All dependencies are listed in `requirements.txt`. Install with:
+```bash
+pip install -r requirements.txt
 ```
+
+### Security
+
+- All secrets and API keys must be set via environment variables.
+- `.env` and database files are excluded from git via `.gitignore`.
+- See `SECURITY_CHECKLIST.md` for more.
 
 ### Email Setup (Gmail)
 

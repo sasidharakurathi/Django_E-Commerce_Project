@@ -1,0 +1,177 @@
+{% extends 'ecom/admin_base.html' %}
+{% load static %}
+{% block content %}
+
+<div class="main-container">
+    <div class="header-bar">
+        <h2 class="page-title">Manage Jobs</h2>
+        <a href="{% url 'create-new-job' %}" class="fab" title="Add Job">
+            <span>+</span>
+        </a>
+    </div>
+    <div class="card-container">
+        <div class="row g-3">
+            {% for job in job_list %}
+            <a href="{% url 'job-detail' job.job_code %}" class="col-12 col-sm-6 col-md-4 col-lg-3 mb-4 d-flex align-items-stretch" id="card">
+                {% comment %} <div > {% endcomment %}
+                    <div class="card shadow-sm job-card glass-card" style="width: 100%;">
+                        <div class="card-header bg-gradient text-white">
+                            <h5 class="card-title mb-0"><strong>{{ job.job_title }}</strong></h5>
+                        </div>
+                        <div class="card-body">
+                            {% comment %} <p><span class="card-label">Job Id:</span> {{ job.id }}</p> {% endcomment %}
+                            <p><span class="card-label">Job Code:</span> {{ job.job_code }}</p>
+                            {% comment %} <p><span class="card-label">Job Title:</span> {{ job.job_title }}</p>s {% endcomment %}
+                        </div>
+                    </div>
+                {% comment %} </div> {% endcomment %}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<style>
+body {
+    background: linear-gradient(120deg, #e3f2fd 0%, #f8f9fa 100%);
+    font-family: 'Segoe UI', 'Roboto', Arial, sans-serif;
+}
+
+.main-container {
+    max-width: 100vw;
+    width: 97%;
+    min-height: 85vh;
+    padding: 32px 0 0 0;
+    margin: 60px auto 0;
+    overflow-y: auto;
+    border-radius: 24px;
+    box-shadow: 0 8px 32px rgba(26, 35, 126, 0.10);
+    backdrop-filter: blur(2px);
+    position: relative;
+}
+
+.header-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 32px 24px 32px;
+}
+
+.page-title {
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: #1a237e;
+    letter-spacing: 1px;
+    margin: 0;
+    text-shadow: 0 2px 8px rgba(26,35,126,0.08);
+}
+
+.fab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, #1976d2 60%, #1a237e 100%);
+    color: #fff;
+    font-size: 2rem;
+    border-radius: 50%;
+    box-shadow: 0 4px 16px rgba(26,35,126,0.18);
+    text-decoration: none;
+    transition: background 0.2s, transform 0.2s;
+    position: relative;
+}
+.fab:hover {
+    /*background: linear-gradient(135deg, #1a237e 60%, #1976d2 100%);
+    */
+    transform: scale(1.08);
+}
+
+.card-container {
+    width: 100%;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    background: transparent;
+}
+
+.row.g-4 {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+}
+
+.job-card {
+    border: none;
+    border-radius: 18px;
+    box-shadow: 0 10px 32px rgba(20, 93, 251, 0.13);
+    transition: transform 0.25s cubic-bezier(.17,.67,.83,.67), box-shadow 0.25s;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+.glass-card {
+    background: rgba(255,255,255,0.65);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(26,35,126,0.07);
+}
+
+.job-card:hover {
+    transform: translateY(-10px) scale(1.04) rotate(-1deg);
+    box-shadow: 0 20px 56px rgba(26, 35, 126, 0.22);
+    border: 1.5px solid #1976d2;
+}
+
+.card-header.bg-gradient {
+    border-bottom: 1px solid #e3e3e3;
+    border-radius: 18px 18px 0 0;
+    padding: 18px 22px;
+    background: linear-gradient(90deg, #1976d2 60%, #1a237e 100%);
+    box-shadow: 0 2px 8px rgba(26,35,126,0.09);
+}
+
+.card-title {
+    color: #fff;
+    font-size: 1.18rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    margin: 0;
+}
+
+.card-body {
+    padding: 20px 22px;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.card-body p {
+    text-align: left;
+    margin: 0 0 12px 0;
+    font-size: 1.05rem;
+    color: #333;
+    font-weight: 400;
+    letter-spacing: 0.2px;
+}
+
+.card-label {
+    color: #1976d2;
+    font-weight: 600;
+    margin-right: 8px;
+    font-size: 1.02rem;
+}
+
+#card {
+    text-decoration: none;
+}
+</style>
+
+{% endblock content %}

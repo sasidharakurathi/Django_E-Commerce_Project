@@ -183,7 +183,7 @@
                     // console.log(dataURL);
                     $.ajax({
                         type: "POST",
-                        url: "http://127.0.0.1:8000/get_res/",
+                        url: `${window.location.protocol}//{{ request.get_host }}/get_res/`,
                         data: JSON.stringify({ image: dataURL }),
                         contentType: "application/json",
                         success: function (data) {

@@ -1,26 +1,310 @@
 {% load static %}
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
+	<head>
+		<meta charset="utf-8" />
+		<title>Online Shopping</title>
 
-<head>
-  <meta charset="utf-8">
-  <title>Online Shopping</title>
+		<!-- Bootstrap 3 CSS -->
+		<link
+			rel="stylesheet"
+			href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.0/css/bootstrap.min.css"
+		/>
+		<!-- jQuery library -->
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+		<!-- Bootstrap 3 JS -->
+		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.0/js/bootstrap.min.js"></script>
+		<style>
+			html , body {
+				height: 100%;
+			}
+			.chat-widget {
+				position: fixed;
+				bottom: 20px;
+				right: 20px;
+				width: 350px;
+				max-width: 90vw;
+				z-index: 1050;
+				display: flex;
+				flex-direction: column;
+				box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+				border-radius: 1rem;
+				overflow: hidden;
+				height: 500px;
+				background: #fff;
+			}
+			.chat-header {
+				background: #337ab7; /* Bootstrap 3 primary color */
+				color: #fff;
+				padding: 1rem 1.5rem 1rem 1.5rem;
+				display: -webkit-box;
+				display: -ms-flexbox;
+				display: flex;
+				-webkit-box-align: center;
+				-ms-flex-align: center;
+				align-items: center;
+				-webkit-box-pack: justify;
+				-ms-flex-pack: justify;
+				justify-content: space-between;
+			}
+			.chat-header-title {
+				margin: 0;
+				font-size: 1.5rem;
+			}
+			.chat-header-desc {
+				margin: 0;
+				font-size: 1.3rem;
+				opacity: 0.9;
+			}
+			.chat-log {
+				-webkit-box-flex: 1;
+				-ms-flex-positive: 1;
+				flex-grow: 1;
+				padding: 1rem;
+				overflow-y: auto;
+				display: -webkit-box;
+				display: -ms-flexbox;
+				display: flex;
+				-webkit-box-orient: vertical;
+				-webkit-box-direction: normal;
+				-ms-flex-direction: column;
+				flex-direction: column;
+				background: #f8f9fa;
+			}
+			.chat-log > * + * {
+				margin-top: 0.5rem;
+			}
+			.chat-message {
+				padding: 0.75rem 1.25rem;
+				border-radius: 1.5rem;
+				max-width: 80%;
+				word-break: break-word;
+				font-size: 1.5rem;
+				line-height: 1.4;
+			}
+			.chat-message.user {
+				background: #337ab7; /* Bootstrap 3 primary color */
+				color: #fff;
+				-ms-flex-item-align: end;
+				align-self: flex-end;
+				border-bottom-right-radius: 0.5rem;
+				margin-left: auto;
+			}
+			.chat-message.bot {
+				background: #e9ecef;
+				color: #333;
+				-ms-flex-item-align: start;
+				align-self: flex-start;
+				border-bottom-left-radius: 0.5rem;
+				margin-right: auto;
+			}
+			.chat-input-container {
+				padding: 1rem;
+				border-top: 1px solid #e0e0e0;
+				background: #fff;
+			}
+			.chat-input-container .form-inline {
+				display: -webkit-box;
+				display: -ms-flexbox;
+				display: flex;
+				-webkit-box-align: center;
+				-ms-flex-align: center;
+				align-items: center;
+			}
+			.chat-input-container .form-group {
+				-webkit-box-flex: 1;
+				-ms-flex: 1;
+				flex: 1;
+				margin-right: 10px;
+				margin-bottom: 0;
+			}
+			.chat-toggle-btn {
+				position: fixed;
+				bottom: 20px;
+				right: 20px;
+				z-index: 1060;
+				border-radius: 50%;
+				width: 60px;
+				height: 60px;
+				background: #337ab7; /* Bootstrap 3 primary color */
+				color: #fff;
+				border: none;
+				display: -webkit-box;
+				display: -ms-flexbox;
+				display: flex;
+				-webkit-box-align: center;
+				-ms-flex-align: center;
+				align-items: center;
+				-webkit-box-pack: center;
+				-ms-flex-pack: center;
+				justify-content: center;
+				font-size: 2.2rem;
+				box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+				cursor: pointer;
+				display: none;
+			}
+		</style>
 
-</head>
+		<!-- Bootstrap 3 is already loaded above -->
+		<script>
+			// Chat Widget JavaScript with Bootstrap UI and minimize/maximize
+			document.addEventListener("DOMContentLoaded", function () {
+				const chatForm = document.getElementById("chat-form");
+				const userInput = document.getElementById("user-input");
+				const chatLog = document.getElementById("chat-log");
+				const csrfToken = document.querySelector(
+					"[name=csrfmiddlewaretoken]"
+				).value;
+				const chatWidget = document.querySelector(".chat-widget");
+				const chatToggleBtn =
+					document.getElementById("chat-toggle-btn");
+				const chatMinimizeBtn =
+					document.getElementById("chat-minimize-btn");
 
-<body>
-  {%if request.user.is_authenticated%}
-    {% include "ecom/customer_navbar.html" %}
-  {%else%}
-    {% include "ecom/navbar.html" %}
-  {%endif%}
+				chatForm.addEventListener("submit", function (event) {
+					event.preventDefault();
+					const userMessage = userInput.value.trim();
+					if (userMessage) {
+						appendMessage(userMessage, "user");
+						userInput.value = "";
+						const thinkingMessage = appendMessage("...", "bot");
+						fetch("/api/chat/", {
+							method: "POST",
+							headers: {
+								"Content-Type": "application/json",
+								"X-CSRFToken": csrfToken,
+							},
+							body: JSON.stringify({ message: userMessage }),
+						})
+							.then((response) => response.json())
+							.then((data) => {
+								thinkingMessage.remove();
+								if (data.answer) {
+									appendMessage(data.answer, "bot");
+								} else if (data.error) {
+									appendMessage(
+										`Error: ${data.error}`,
+										"bot"
+									);
+								} else if (data.status) {
+									appendMessage(data.status, "bot");
+								}
+							})
+							.catch((error) => {
+								console.error("Error:", error);
+								thinkingMessage.remove();
+								appendMessage(
+									"Sorry, something went wrong. Please try again.",
+									"bot"
+								);
+							});
+					}
+				});
 
+				function appendMessage(message, sender) {
+					const messageElement = document.createElement("div");
+					messageElement.classList.add("chat-message", sender);
+					const paragraphElement = document.createElement("p");
+					paragraphElement.textContent = message;
+					messageElement.appendChild(paragraphElement);
+					chatLog.appendChild(messageElement);
+					chatLog.scrollTop = chatLog.scrollHeight;
+					return messageElement;
+				}
 
-  {%block content%}
+				// Minimize/maximize logic
+				chatMinimizeBtn.addEventListener("click", function () {
+					chatWidget.style.display = "none";
+					chatToggleBtn.style.display = "flex";
+				});
+				chatToggleBtn.addEventListener("click", function () {
+					chatWidget.style.display = "flex";
+					chatToggleBtn.style.display = "none";
+				});
+			});
+		</script>
+	</head>
 
-  {%endblock content%}
+	<body>
+		{%if request.user.is_authenticated%} 
+			{% include "ecom/customer_navbar.html" %} 
+		{%else%} 
+			{% include "ecom/navbar.html" %}
+		{%endif%} 
+		
+		{%block content%} {%endblock content%}
 
-  
-  {% include "ecom/footer.html" %}
-</body>
+		<!-- Chat Toggle Button (hidden by default) -->
+		<button
+			id="chat-toggle-btn"
+			class="chat-toggle-btn"
+			title="Open Chat"
+			style="display: flex"
+		>
+			<i class="glyphicon glyphicon-comment"></i>
+			<span class="sr-only">Open Chat</span>
+		</button>
+
+		<!-- Chat Widget -->
+		<div class="chat-widget" style="display: none">
+			<div class="chat-header">
+				<div>
+					<span class="chat-header-title" style="font-weight: bold"
+						>E-commerce Assistant</span
+					><br />
+					<span class="chat-header-desc"
+						>Ask me about products, shipping, or returns!</span
+					>
+				</div>
+				<button
+					id="chat-minimize-btn"
+					class="btn btn-sm btn-default"
+					title="Minimize Chat"
+					style="
+						border-radius: 50%;
+						margin-left: 10px;
+						font-size: 1.5rem;
+					"
+				>
+					<span aria-hidden="true">&minus;</span>
+				</button>
+			</div>
+			<div class="chat-log" id="chat-log">
+				<div class="chat-message bot">
+					<p>Hello! How can I help you today?</p>
+				</div>
+			</div>
+			<div class="chat-input-container">
+				<form id="chat-form" class="form-inline">
+					{% csrf_token %}
+					<div class="form-group" style="flex: 1; margin-right: 10px">
+						<input
+							type="text"
+							id="user-input"
+							class="form-control"
+							placeholder="Type your message..."
+							autocomplete="off"
+							required
+							style="
+								width: 100%;
+								font-size: 1.3rem;
+								padding: 10px;
+							"
+						/>
+					</div>
+					<button
+						type="submit"
+						class="btn btn-primary"
+						style="font-size: 1.3rem; padding: 10px 16px"
+					>
+						Send
+					</button>
+				</form>
+			</div>
+		</div>
+
+		<!-- Bootstrap 3 uses Glyphicons which are included by default -->
+
+		{% include "ecom/footer.html" %}
+	</body>
 </html>

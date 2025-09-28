@@ -1,0 +1,62 @@
+# requirements.txt for Django E-Commerce Project
+# Install all dependencies with:
+#   pip install -r requirements.txt
+
+# Core Django
+Django>=3.0.5
+asgiref
+sqlparse
+pymysql
+django-widget-tweaks
+django_flatpickr
+
+# E-Commerce & Payments
+stripe
+paypal
+paypalrestsdk
+channels
+channels-redis
+redis
+whitenoise
+xhtml2pdf
+
+# REST API
+ djangorestframework
+
+# Face Recognition & Resume Parsing
+opencv-python
+opencv-contrib-python
+face-recognition
+face_recognition_models
+dlib
+mtcnn
+resume-parser
+
+# Chatbot & AI
+langchain
+langchain-community
+langchain-core
+sentence-transformers
+chromadb
+torch
+transformers
+accelerate
+google-generativeai
+lark
+python-dotenv
+PyPDF2
+python-docx
+ollama
+
+# Utilities
+pillow
+python-dotenv
+requests
+jsons
+
+# Deployment
+ gunicorn
+
+# Optional: MySQL/Postgres drivers
+# PyMySQL
+# psycopg2-binary

@@ -1,0 +1,74 @@
+{% extends "resumeparser/jobformbase.html" %}
+{% load static %}
+
+{% block styles %}
+<style>
+    body {
+        min-height: 100vh !important; 
+    }
+
+    .center-wrapper {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height:64vh;  /* Adjust if you have a fixed header */
+    }
+
+    .box {
+        width: 500px;
+        padding: 40px;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        text-align: center;
+        transition: all 0.3s ease;
+        border-radius: 16px;
+        box-shadow: 0 16px 48px rgba(26, 35, 126, 0.2);
+    }
+
+    .box h1 {
+        color: #1a237e;
+        text-transform: uppercase;
+        font-weight: 700;
+        margin-bottom: 10px;
+    }
+
+    .box button {
+        border: 0;
+        background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%);
+        display: block;
+        margin: 20px auto 0;
+        text-align: center;
+        padding: 14px 40px;
+        outline: none;
+        color: white;
+        border-radius: 12px;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 16px;
+        box-shadow: 0 4px 16px rgba(26, 35, 126, 0.3);
+    }
+
+    .box button:hover {
+        background: linear-gradient(135deg, #3949ab 0%, #5c6bc0 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(26, 35, 126, 0.4);
+    }
+</style>
+{% endblock styles %}
+
+{% block content %}
+<div class="center-wrapper">
+    {% if jobformsubmitted %}
+        <div class="box">
+           <h1>Application Submitted Successfully</h1>
+            <button onclick="window.location.href='/'">OK</button>
+        </div>
+    {% else %}
+        <div class="box">
+            <h1>Something went wrong. Please try again</h1>
+            <button onclick="window.location.reload()">OK</button>
+        </div>    
+    {% endif %}
+</div>
+{% endblock content %}

@@ -9,11 +9,9 @@ import json
 import time
 from collections import Counter
 
-# Get the directory where this script is located
-current_dir = os.path.dirname(os.path.abspath(__file__))
-DATASET_DIR = os.path.join(current_dir, "dataset")
-ENCODING_FILE = os.path.join(current_dir, "encodings", "known_faces.pkl")
-CACHE_FILE = os.path.join(current_dir, "encodings", "cache.json")
+DATASET_DIR = "C:\\Users\\A S\\OneDrive\\Desktop\\Online_Shopping_Project_Django_Development\\ecom\\FaceRecognition\\dataset"
+ENCODING_FILE = "C:\\Users\\A S\\OneDrive\\Desktop\\Online_Shopping_Project_Django_Development\\ecom\\FaceRecognition\\encodings\\known_faces.pkl"
+CACHE_FILE = "C:\\Users\\A S\\OneDrive\\Desktop\\Online_Shopping_Project_Django_Development\\ecom\\FaceRecognition\\encodings\\cache.json"
 MAX_SIZE = 640  # Maximum dimension for resizing
 
 def get_image_hash(image_path):

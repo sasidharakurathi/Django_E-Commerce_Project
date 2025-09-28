@@ -1,27 +1,19 @@
-"""
-
-Developed By : sumit kumar
-facebook : fb.com/sumit.luv
-Youtube :youtube.com/lazycoders
-
-
-"""
 from django.contrib import admin
 from django.urls import path , include
 from ecom import views
 from django.contrib.auth.views import LoginView,LogoutView
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.generic.base import RedirectView
 urlpatterns = [
+    
+    path('favicon.ico', RedirectView.as_view(url='/static/images/favicon.ico')),
+    
     path('admin/', admin.site.urls),
     path('',views.home_view,name=''),
     path('afterlogin', views.afterlogin_view,name='afterlogin'),
     path('logout', LogoutView.as_view(template_name='ecom/logout.html'),name='logout'),
-    path('aboutus', views.aboutus_view),
-    path('contactus', views.contactus_view,name='contactus'),
     path('search', views.search_view,name='search'),
-    path('send-feedback', views.send_feedback_view,name='send-feedback'),
-    path('view-feedback', views.view_feedback_view,name='view-feedback'),
 
     path('adminclick', views.adminclick_view),
     path('adminlogin', LoginView.as_view(template_name='ecom/adminlogin.html'),name='adminlogin'),
@@ -39,6 +31,13 @@ urlpatterns = [
     path('admin-view-booking', views.admin_view_booking_view,name='admin-view-booking'),
     path('delete-order/<int:pk>', views.delete_order_view,name='delete-order'),
     path('update-order/<int:pk>', views.update_order_view,name='update-order'),
+    
+    path('admin-logs' , views.admin_logs_view , name="admin-logs"),
+    path('admin-payment-logs' , views.admin_payment_logs_view , name="admin-payment-logs"),
+    path('admin-stripe-logs' , views.admin_stripe_logs_view , name="admin-stripe-logs"),
+    path('admin-phonepe-logs' , views.admin_phonepe_logs_view , name="admin-phonepe-logs"),
+    path('admin-gpay-logs' , views.admin_gpay_logs_view , name="admin-gpay-logs"),
+    path('admin-payment-error-logs' , views.admin_payment_error_logs_view , name="admin-payment-error-logs"),
 
 
     path('customersignup', views.customer_signup_view),
@@ -51,11 +50,14 @@ urlpatterns = [
 
 
     path('add-to-cart/<int:pk>', views.add_to_cart_view,name='add-to-cart'),
+    path('decrement-cart-item-view/<int:pk>', views.decrement_cart_item_view,name='decrement-cart-item-view'),
+    path('increment-cart-item-view/<int:pk>', views.increment_cart_item_view,name='increment-cart-item-view'),
     path('cart', views.cart_view,name='cart'),
     path('remove-from-cart/<int:pk>', views.remove_from_cart_view,name='remove-from-cart'),
     path('customer-address', views.customer_address_view,name='customer-address'),
     path('payment-success', views.payment_success_view,name='payment-success'),
-    path('' , include('paypal.standard.ipn.urls')),     # Paypal payments
+    path('payment-failed', views.payment_failed_view,name='payment-failed'),
+    # path('' , include('paypal.standard.ipn.urls')),     # Paypal payments
     path('stripe-payment' , views.stripe_payment , name='stripe-payment'),
     path('phonepe-payment' , views.phonepe_payment , name='phonepe-payment'),
     path('gpay-payment/' , views.gpay_payment , name='gpay-payment'),
@@ -64,6 +66,20 @@ urlpatterns = [
     path('face-login/' , views.face_login , name='face-login'),
     path("get_res/" , views.get_res , name="get_res"),
     path("register_face/save_frame/" , views.save_frame , name="get_res"),
+    
+    path("create-new-job/" , views.create_new_job , name="create-new-job"),
+    path("manage-jobs/" , views.manage_jobs , name="manage-jobs"),
+    path("apply-job/<str:job_code>" , views.apply_job , name="apply-job"),
+    path("job-detail/<str:job_code>" , views.job_detail , name="job-detail"),
+    path("view-analysis/<str:job_code>" , views.view_analysis , name="view-analysis"),
+    # path("analyse-pdfs/" , views.analyse_resumes , name="analyse-pdfs"),
+    path("analyse-batch/" , views.analyse_batch , name="analyse-batch"),
+    path('api/chat/', views.ChatbotAPIView.as_view(), name='chatbot_api'),
+    
+
+
+
+    path("test/" , views.test , name="test"),
 ]
 
 # Serve media files during development

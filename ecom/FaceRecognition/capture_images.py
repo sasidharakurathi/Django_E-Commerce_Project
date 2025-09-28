@@ -32,9 +32,7 @@ def capture_images_for_user(username, count=5):
     cv2.destroyAllWindows()
     
 def save_frame(frame , userid , count):
-    # Get the directory where this script is located
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    OUTPUT_DIR = os.path.join(current_dir, "dataset")
+    OUTPUT_DIR = "C:\\Users\\A S\\OneDrive\\Desktop\\Online_Shopping_Project_Django_Development\\ecom\\FaceRecognition\\dataset"
     output_dir = os.path.join(OUTPUT_DIR, str(userid))
     os.makedirs(output_dir, exist_ok=True)
     img_path = os.path.join(output_dir, f"{count + 1}.jpg")

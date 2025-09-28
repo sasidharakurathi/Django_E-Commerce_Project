@@ -199,7 +199,7 @@
                     // console.log(dataURL);
                     $.ajax({
                         type: "POST",
-                        url: "http://127.0.0.1:8000/register_face/save_frame/",
+                        url: `${window.location.protocol}//{{ request.get_host }}/register_face/save_frame/`,
                         data: JSON.stringify({ image: dataURL ,userid: {{userid}} , count: captureCount}),
                         contentType: "application/json",
                         success: function (data) {

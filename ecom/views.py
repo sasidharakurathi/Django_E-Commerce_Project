@@ -1,51 +1,161 @@
-from django.shortcuts import render,redirect,reverse
+from django.shortcuts import render,redirect
 from . import forms,models
+from django.core.paginator import Paginator
 from django.http import HttpResponseRedirect,HttpResponse
-from django.core.mail import send_mail
+# from django.core.mail import send_mail
 from django.contrib.auth.models import Group
 from django.contrib.auth.decorators import login_required,user_passes_test
 from django.contrib import messages
 from django.conf import settings
-import os
+from django.db import transaction
+
+from .ResumeParser.db_operations import *
 
 #   Stripe imports
 import stripe
 
 #   PAYPAL imports
-from paypal.standard.forms import PayPalPaymentsForm
 import uuid
-from django.urls import reverse
 
 #   Phonepe imports
 
 import jsons
 import base64
 import requests
-import shortuuid
 from cryptography.hazmat.primitives import hashes
 from django.views.decorators.csrf import csrf_exempt
 from cryptography.hazmat.backends import default_backend
 from django.http import JsonResponse
-import datetime
 import json
+from functools import wraps
+from django.utils import timezone
+from datetime import timedelta
+from django.shortcuts import get_object_or_404
+import secrets
 
-# Stripe configuration - use environment variable for security
-stripe.api_key = os.environ.get('STRIPE_SECRET_KEY', 'your-stripe-secret-key-here')
+# Payment validation decorator
+def validated_payment_required(f):
+    @wraps(f)
+    def decorated(request, *args, **kwargs):
+        validation_token = request.GET.get('validation_token')
+        payment_type = request.GET.get('payment_type')
+        
+        if not validation_token or not payment_type:
+            transaction_id = request.COOKIES.get('transaction_id', str(uuid.uuid4()))
+            error_message = "Unauthorized access to payment success page - missing validation parameters"
+            log_payment_error(transaction_id, payment_type or 'unknown', error_message, request)
+            messages.error(request, "Invalid payment session. Please complete payment process properly.")
+            return redirect('cart')
+        
+        try:
+            payment_session = models.PaymentSession.objects.get(
+                validation_token=validation_token,
+                payment_type=payment_type
+            )
+            
 
+            if payment_session.is_expired():
+                payment_session.mark_as_failed("Session expired")
+                error_message = "Payment session expired"
+                log_payment_error(payment_session.transaction_id, payment_type, error_message, request)
+                messages.error(request, "Payment session expired. Please try again.")
+                return redirect('cart')
+            
+
+            if not payment_session.is_validated:
+                error_message = "Payment not validated"
+                log_payment_error(payment_session.transaction_id, payment_type, error_message, request)
+                messages.error(request, "Payment validation failed. Please complete payment process.")
+                return redirect('cart')
+            
+
+            if payment_session.status == 'COMPLETED':
+                error_message = "Payment session already completed"
+                log_payment_error(payment_session.transaction_id, payment_type, error_message, request)
+                messages.warning(request, "This payment has already been processed.")
+                return redirect('my-order')
+            
+
+            request.payment_session = payment_session
+            
+ 
+            response = f(request, *args, **kwargs)
+            
+
+            if hasattr(request, 'payment_session') and request.payment_session.status == 'VALIDATED':
+                request.payment_session.mark_as_completed()
+            
+            return response
+            
+        except models.PaymentSession.DoesNotExist:
+
+            error_message = "Invalid validation token for payment session"
+            transaction_id = request.COOKIES.get('transaction_id', str(uuid.uuid4()))
+            log_payment_error(transaction_id, payment_type, error_message, request)
+            messages.error(request, "Invalid payment session. Please complete payment process properly.")
+            return redirect('cart')
+        
+        except Exception as e:
+
+            error_message = f"Payment validation error: {str(e)}"
+            transaction_id = request.COOKIES.get('transaction_id', str(uuid.uuid4()))
+            log_payment_error(transaction_id, payment_type, error_message, request)
+            messages.error(request, "Payment validation failed. Please try again.")
+            return redirect('cart')
+    
+    return decorated
+
+def create_payment_session(transaction_id, payment_type, user_id, customer_email, amount, cart_data, shipping_details, expires_in_minutes=30):
+
+    session_id = str(uuid.uuid4())
+    validation_token = secrets.token_urlsafe(32)
+    
+
+    expires_at = timezone.now() + timedelta(minutes=expires_in_minutes)
+    
+
+    payment_session = models.PaymentSession.objects.create(
+        session_id=session_id,
+        transaction_id=transaction_id,
+        payment_type=payment_type,
+        user_id=user_id,
+        customer_email=customer_email,
+        amount=amount,
+        validation_token=validation_token,
+        cart_data=cart_data,
+        shipping_details=shipping_details,
+        status='PENDING',
+        expires_at=expires_at
+    )
+    
+    return payment_session
+
+stripe.api_key = settings.STRIPE_API
 def home_view(request):
-    products=models.Product.objects.all()
-    if 'product_ids' in request.COOKIES:
-        product_ids = request.COOKIES['product_ids']
-        counter=product_ids.split('|')
-        product_count_in_cart=len(set(counter))
+    products_list = models.Product.objects.all().order_by('id')
+
+    # Pagination - 9 products per page
+    paginator = Paginator(products_list, 9)
+    page_number = request.GET.get('page')
+    products = paginator.get_page(page_number)
+
+    if str(request.user) == "AnonymousUser" or is_admin(request.user):
+        if 'product_ids' in request.COOKIES:
+            product_ids = request.COOKIES['product_ids']
+            counter=product_ids.split('|')
+            product_count_in_cart=len(set(counter))
+        else:
+            product_count_in_cart=0
     else:
-        product_count_in_cart=0
+        cart_data = get_cart_context(request)
+        product_count_in_cart = cart_data["product_count_in_cart"]
+        
     if request.user.is_authenticated:
         return HttpResponseRedirect('afterlogin')
     return render(request,'ecom/index.html',{'products':products,'product_count_in_cart':product_count_in_cart})
 
 
-#for showing login button for admin(by sumit)
+#for showing login button for admin
 def adminclick_view(request):
     if request.user.is_authenticated:
         return HttpResponseRedirect('afterlogin')
@@ -92,19 +202,26 @@ def customer_signup_view(request):
 def is_customer(user):
     return user.groups.filter(name='CUSTOMER').exists()
 
+def is_admin(user):
+    return user.is_staff or user.is_superuser
+
 
 
 #---------AFTER ENTERING CREDENTIALS WE CHECK WHETHER USERNAME AND PASSWORD IS OF ADMIN,CUSTOMER
 def afterlogin_view(request):
     if is_customer(request.user):
+        sync_cookie_cart_to_db(request)
         return redirect('customer-home')
-    else:
+    elif is_admin(request.user):
         return redirect('admin-dashboard')
+    
+    return redirect('customerlogin')
 
 #---------------------------------------------------------------------------------
 #------------------------ ADMIN RELATED VIEWS START ------------------------------
 #---------------------------------------------------------------------------------
 @login_required(login_url='adminlogin')
+@user_passes_test(is_admin , login_url='adminlogin')
 def admin_dashboard_view(request):
     # for cards on dashboard
     customercount=models.Customer.objects.all().count()
@@ -112,7 +229,7 @@ def admin_dashboard_view(request):
     ordercount=models.Orders.objects.all().count()
 
     # for recent order tables
-    orders=models.Orders.objects.all()
+    orders = models.Orders.objects.all().order_by('-id')[:10]
     ordered_products=[]
     ordered_bys=[]
     for order in orders:
@@ -132,12 +249,20 @@ def admin_dashboard_view(request):
 
 # admin view customer table
 @login_required(login_url='adminlogin')
+@user_passes_test(is_admin , login_url='adminlogin')
 def view_customer_view(request):
     customers=models.Customer.objects.all()
+    
+    # Pagination - 10 orders per page 
+    paginator = Paginator(customers, 10) 
+    page_number = request.GET.get('page') 
+    customers = paginator.get_page(page_number)
+    
     return render(request,'ecom/view_customer.html',{'customers':customers})
 
 # admin delete customer
 @login_required(login_url='adminlogin')
+@user_passes_test(is_admin , login_url='adminlogin')
 def delete_customer_view(request,pk):
     customer=models.Customer.objects.get(id=pk)
     user=models.User.objects.get(id=customer.user_id)
@@ -147,6 +272,7 @@ def delete_customer_view(request,pk):
 
 
 @login_required(login_url='adminlogin')
+@user_passes_test(is_admin , login_url='adminlogin')
 def update_customer_view(request,pk):
     customer=models.Customer.objects.get(id=pk)
     user=models.User.objects.get(id=customer.user_id)
@@ -166,13 +292,21 @@ def update_customer_view(request,pk):
 
 # admin view the product
 @login_required(login_url='adminlogin')
+@user_passes_test(is_admin , login_url='adminlogin')
 def admin_products_view(request):
     products=models.Product.objects.all()
+    
+    # Pagination - 10 products per page
+    paginator = Paginator(products, 9)
+    page_number = request.GET.get('page')
+    products = paginator.get_page(page_number)
+    
     return render(request,'ecom/admin_products.html',{'products':products})
 
 
 # admin add product by clicking on floating button
 @login_required(login_url='adminlogin')
+@user_passes_test(is_admin , login_url='adminlogin')
 def admin_add_product_view(request):
     productForm=forms.ProductForm()
     if request.method=='POST':
@@ -184,6 +318,7 @@ def admin_add_product_view(request):
 
 
 @login_required(login_url='adminlogin')
+@user_passes_test(is_admin , login_url='adminlogin')
 def delete_product_view(request,pk):
     product=models.Product.objects.get(id=pk)
     product.delete()
@@ -191,6 +326,7 @@ def delete_product_view(request,pk):
 
 
 @login_required(login_url='adminlogin')
+@user_passes_test(is_admin , login_url='adminlogin')
 def update_product_view(request,pk):
     product=models.Product.objects.get(id=pk)
     productForm=forms.ProductForm(instance=product)
@@ -203,19 +339,28 @@ def update_product_view(request,pk):
 
 
 @login_required(login_url='adminlogin')
+@user_passes_test(is_admin , login_url='adminlogin')
 def admin_view_booking_view(request):
-    orders=models.Orders.objects.all()
-    ordered_products=[]
-    ordered_bys=[]
+    orders = models.Orders.objects.all()[::-1]
+    ordered_products = []
+    ordered_bys = []
+
     for order in orders:
-        ordered_product=models.Product.objects.all().filter(id=order.product.id)
-        ordered_by=models.Customer.objects.all().filter(id = order.customer.id)
+        ordered_product = models.Product.objects.filter(id=order.product.id)
+        ordered_by = models.Customer.objects.filter(id=order.customer.id)
         ordered_products.append(ordered_product)
         ordered_bys.append(ordered_by)
-    return render(request,'ecom/admin_view_booking.html',{'data':zip(ordered_products,ordered_bys,orders)})
+
+    # Pagination - 10 orders per page
+    paginator = Paginator(list(zip(ordered_products, ordered_bys, orders)), 10)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    return render( request,'ecom/admin_view_booking.html',{'data': page_obj})
 
 
 @login_required(login_url='adminlogin')
+@user_passes_test(is_admin , login_url='adminlogin')
 def delete_order_view(request,pk):
     order=models.Orders.objects.get(id=pk)
     order.delete()
@@ -223,6 +368,7 @@ def delete_order_view(request,pk):
 
 # for changing status of order (pending,delivered...)
 @login_required(login_url='adminlogin')
+@user_passes_test(is_admin , login_url='adminlogin')
 def update_order_view(request,pk):
     order=models.Orders.objects.get(id=pk)
     orderForm=forms.OrderForm(instance=order)
@@ -233,12 +379,95 @@ def update_order_view(request,pk):
             return redirect('admin-view-booking')
     return render(request,'ecom/update_order.html',{'orderForm':orderForm})
 
+def admin_logs_view(request):
+    mydict = dict()
+    
+    payment_logs_count = models.PaymentLogs.objects.all().count
+    stripe_logs_count = models.StripeLogs.objects.all().count
+    phonepe_logs_count = models.PhonepeLogs.objects.all().count
+    gpay_logs_count = models.GooglepayLogs.objects.all().count
+    payment_error_logs_count = models.PaymentErrorLogs.objects.all().count
+    
+    mydict["payment_logs_count"] = payment_logs_count
+    mydict["stripe_logs_count"] = stripe_logs_count
+    mydict["phonepe_logs_count"] = phonepe_logs_count
+    mydict["gpay_logs_count"] = gpay_logs_count
+    mydict["payment_error_logs_count"] = payment_error_logs_count
+    
+    return render(request , "ecom/admin_logs.html" , context=mydict)
 
-# admin view the feedback
-@login_required(login_url='adminlogin')
-def view_feedback_view(request):
-    feedbacks=models.Feedback.objects.all().order_by('-id')
-    return render(request,'ecom/view_feedback.html',{'feedbacks':feedbacks})
+def admin_payment_logs_view(request):
+    mydict = dict()
+    
+    payment_logs = models.PaymentLogs.objects.all().order_by('id')
+    
+    # Pagination - 9 products per page
+    paginator = Paginator(payment_logs, 10)
+    page_number = request.GET.get('page')
+    payment_logs = paginator.get_page(page_number)
+    
+    mydict["payment_logs"] = payment_logs
+    return render(request , "ecom/admin_payment_logs.html" , context=mydict)
+
+def admin_stripe_logs_view(request):
+    
+    mydict = dict()
+    
+    stripe_logs = models.StripeLogs.objects.all().order_by('id')
+    
+    # Pagination - 9 products per page
+    paginator = Paginator(stripe_logs, 10)
+    page_number = request.GET.get('page')
+    stripe_logs = paginator.get_page(page_number)
+    
+    mydict["stripe_logs"] = stripe_logs
+    
+    return render(request , "ecom/admin_stripe_logs.html" , context=mydict)
+
+def admin_phonepe_logs_view(request):
+    
+    mydict = dict()
+    
+    phonepe_logs = models.PhonepeLogs.objects.all().order_by('id')
+    
+    # Pagination - 9 products per page
+    paginator = Paginator(phonepe_logs, 10)
+    page_number = request.GET.get('page')
+    phonepe_logs = paginator.get_page(page_number)
+    
+    mydict["phonepe_logs"] = phonepe_logs
+    
+    return render(request , "ecom/admin_phonepe_logs.html" , context=mydict)
+
+def admin_gpay_logs_view(request):
+    
+    mydict = dict()
+    
+    gpay_logs = models.GooglepayLogs.objects.all().order_by('id')
+    
+    # Pagination - 9 products per page
+    paginator = Paginator(gpay_logs, 10)
+    page_number = request.GET.get('page')
+    gpay_logs = paginator.get_page(page_number)
+    
+    mydict["gpay_logs"] = gpay_logs
+    
+    return render(request , "ecom/admin_gpay_logs.html" , context=mydict)
+
+def admin_payment_error_logs_view(request):
+    
+    mydict = dict()
+    
+    payment_error_logs = models.PaymentErrorLogs.objects.all().order_by('id')
+    
+    # Pagination - 9 products per page
+    paginator = Paginator(payment_error_logs, 10)
+    page_number = request.GET.get('page')
+    payment_error_logs = paginator.get_page(page_number)
+    
+    mydict["payment_error_logs"] = payment_error_logs
+    
+    return render(request , "ecom/admin_payment_error_logs.html" , context=mydict)
 
 
 
@@ -248,137 +477,345 @@ def view_feedback_view(request):
 def search_view(request):
     # whatever user write in search box we get in query
     query = request.GET['query']
-    products=models.Product.objects.all().filter(name__icontains=query)
-    if 'product_ids' in request.COOKIES:
-        product_ids = request.COOKIES['product_ids']
-        counter=product_ids.split('|')
-        product_count_in_cart=len(set(counter))
+    products_list = models.Product.objects.all().filter(name__icontains=query).order_by('id')
+
+    # Pagination - 9 products per page
+    paginator = Paginator(products_list, 9)
+    page_number = request.GET.get('page')
+    products = paginator.get_page(page_number)
+
+    if str(request.user) == "AnonymousUser":
+        if 'product_ids' in request.COOKIES:
+            product_ids = request.COOKIES['product_ids']
+            counter=product_ids.split('|')
+            product_count_in_cart=len(set(counter))
+        else:
+            product_count_in_cart=0
     else:
-        product_count_in_cart=0
+        cart_data = get_cart_context(request)
+        product_count_in_cart = cart_data["product_count_in_cart"]
 
     # word variable will be shown in html when user click on search button
     word="Searched Result :"
 
     if request.user.is_authenticated:
-        return render(request,'ecom/customer_home.html',{'products':products,'word':word,'product_count_in_cart':product_count_in_cart})
-    return render(request,'ecom/index.html',{'products':products,'word':word,'product_count_in_cart':product_count_in_cart})
+        return render(request,'ecom/customer_home.html',{'products':products,'word':word,'product_count_in_cart':product_count_in_cart,'query':query})
+    return render(request,'ecom/index.html',{'products':products,'word':word,'product_count_in_cart':product_count_in_cart,'query':query})
+
+
+def get_cart_count(product_ids: str):
+    counter = product_ids.split('|')
+    return len(counter)
+
+def get_cart_context(request):
+    total = 0
+    products_with_quantity = []
+
+    if request.user.is_authenticated:
+        customer = models.Customer.objects.get(user=request.user)
+        cart_items = models.Cart.objects.filter(customer=customer)
+
+        for item in cart_items:
+            subtotal = item.product.price * item.quantity
+            total += subtotal
+            products_with_quantity.append({
+                'product': item.product,
+                'quantity': item.quantity,
+                'subtotal': subtotal
+            })
+
+        return {
+            'products_with_quantity': products_with_quantity,
+            'total': total,
+            'product_count_in_cart': cart_items.count(),
+            'cart_source': 'db'
+        }
+
+    elif 'product_ids' in request.COOKIES:
+        product_ids = request.COOKIES['product_ids']
+        product_dict = {
+            int(pid): int(count)
+            for pid, count in (pair.split(':') for pair in product_ids.split('|'))
+        }
+
+        products = models.Product.objects.filter(id__in=product_dict.keys())
+        for p in products:
+            quantity = product_dict.get(p.id, 1)
+            subtotal = p.price * quantity
+            total += subtotal
+            products_with_quantity.append({
+                'product': p,
+                'quantity': quantity,
+                'subtotal': subtotal
+            })
+
+        return {
+            'products_with_quantity': products_with_quantity,
+            'total': total,
+            'product_count_in_cart': len(product_dict),
+            'cart_source': 'cookie',
+            'updated_cookie_value': '|'.join(f"{pid}:{count}" for pid, count in product_dict.items())
+        }
+
+    return {
+        'products_with_quantity': [],
+        'total': 0,
+        'product_count_in_cart': 0,
+        'cart_source': 'none'
+    }
 
 
 # any one can add product to cart, no need of signin
-def add_to_cart_view(request,pk):
-    products=models.Product.objects.all()
+def add_to_cart_view(request, pk):
+    pk = int(pk)
 
-    #for cart counter, fetching products ids added by customer from cookies
-    if 'product_ids' in request.COOKIES:
-        product_ids = request.COOKIES['product_ids']
-        counter=product_ids.split('|')
-        product_count_in_cart=len(set(counter))
+    if request.user.is_authenticated:
+        customer = models.Customer.objects.get(user=request.user)
+        product = models.Product.objects.get(id=pk)
+
+        cart_item, created = models.Cart.objects.get_or_create(
+            customer=customer,
+            product=product,
+            defaults={'quantity': 1, 'total_price': product.price}
+        )
+        if not created:
+            cart_item.quantity += 1
+            cart_item.total_price = cart_item.quantity * product.price
+            cart_item.save()
+
     else:
-        product_count_in_cart=1
-
-    response = render(request, 'ecom/index.html',{'products':products,'product_count_in_cart':product_count_in_cart})
-
-    #adding product id to cookies
-    if 'product_ids' in request.COOKIES:
-        product_ids = request.COOKIES['product_ids']
-        if product_ids=="":
-            product_ids=str(pk)
+        if 'product_ids' in request.COOKIES:
+            product_ids = add_product_to_count(request.COOKIES['product_ids'], pk)
         else:
-            product_ids=product_ids+"|"+str(pk)
+            product_ids = f"{pk}:1"
+
+        response = redirect('')  # 👈 Redirect instead of render
         response.set_cookie('product_ids', product_ids)
+        return response
+
+    return redirect('')  # 👈 Redirect instead of render
+
+
+def add_product_to_count(product_ids, new_product_id):
+    print("product_ids:", product_ids)
+
+    # Parse into dictionary
+    product_dict = {
+        int(pid): int(count)
+        for pid, count in (pair.split(':') for pair in product_ids.split('|'))
+    }
+
+    print("Parsed dict:", product_dict)
+
+    # Add or update the new product
+    if new_product_id in product_dict:
+        product_dict[new_product_id] += 1
     else:
-        response.set_cookie('product_ids', pk)
+        product_dict[new_product_id] = 1
 
-    product=models.Product.objects.get(id=pk)
-    messages.info(request, product.name + ' added to cart successfully!')
+    print("Updated dict:", product_dict)
 
-    return response
+    # Convert back to string format
+    updated_string = '|'.join(f"{pid}:{count}" for pid, count in product_dict.items())
+    print("Updated string:", updated_string)
 
-
+    return updated_string
+        
+        
 
 # for checkout of cart
 def cart_view(request):
-    #for cart counter
-    if 'product_ids' in request.COOKIES:
+    context = get_cart_context(request)
+    response = render(request, 'ecom/cart.html', context)
+
+    # Optional: clear cookie if user is logged in
+    if context['cart_source'] == 'cookie' and request.user.is_authenticated:
+        response.delete_cookie('product_ids')
+
+    return response
+
+def remove_from_cart_view(request, pk):
+    pk = int(pk)
+
+    if request.user.is_authenticated:
+        customer = models.Customer.objects.get(user=request.user)
+        models.Cart.objects.filter(customer=customer, product_id=pk).delete()
+
+    elif 'product_ids' in request.COOKIES:
         product_ids = request.COOKIES['product_ids']
-        counter=product_ids.split('|')
-        product_count_in_cart=len(set(counter))
+        product_dict = {
+            int(pid): int(count)
+            for pid, count in (pair.split(':') for pair in product_ids.split('|'))
+        }
+        if pk in product_dict:
+            del product_dict[pk]
+        updated_cookie_value = '|'.join(f"{pid}:{count}" for pid, count in product_dict.items())
     else:
-        product_count_in_cart=0
+        updated_cookie_value = None
 
-    # fetching product details from db whose id is present in cookie
-    products=None
-    total=0
-    if 'product_ids' in request.COOKIES:
+    # context = get_cart_context(request)
+    # response = render(request, 'ecom/cart.html', context)
+    response = redirect('cart')
+
+    if request.user.is_authenticated or not updated_cookie_value:
+        response.delete_cookie('product_ids')
+    elif updated_cookie_value:
+        response.set_cookie('product_ids', updated_cookie_value)
+
+    return response
+
+def increment_cart_item_view(request, pk):
+    pk = int(pk)
+
+    if request.user.is_authenticated:
+        customer = models.Customer.objects.get(user=request.user)
+        cart_item, created = models.Cart.objects.get_or_create(
+            customer=customer,
+            product_id=pk,
+            defaults={'quantity': 1, 'total_price': models.Product.objects.get(id=pk).price}
+        )
+        if not created:
+            cart_item.quantity += 1
+            cart_item.total_price = cart_item.quantity * cart_item.product.price
+            cart_item.save()
+
+    elif 'product_ids' in request.COOKIES:
         product_ids = request.COOKIES['product_ids']
-        if product_ids != "":
-            product_id_in_cart=product_ids.split('|')
-            products=models.Product.objects.all().filter(id__in = product_id_in_cart)
-
-            #for total price shown in cart
-            for p in products:
-                total=total+p.price
-    return render(request,'ecom/cart.html',{'products':products,'total':total,'product_count_in_cart':product_count_in_cart})
-
-
-def remove_from_cart_view(request,pk):
-    #for counter in cart
-    if 'product_ids' in request.COOKIES:
-        product_ids = request.COOKIES['product_ids']
-        counter=product_ids.split('|')
-        product_count_in_cart=len(set(counter))
+        product_dict = {
+            int(pid): int(count)
+            for pid, count in (pair.split(':') for pair in product_ids.split('|'))
+        }
+        product_dict[pk] = product_dict.get(pk, 0) + 1
+        updated_cookie_value = '|'.join(f"{pid}:{count}" for pid, count in product_dict.items())
     else:
-        product_count_in_cart=0
+        updated_cookie_value = f"{pk}:1"
 
-    # removing product id from cookie
-    total=0
-    if 'product_ids' in request.COOKIES:
-        product_ids = request.COOKIES['product_ids']
-        product_id_in_cart=product_ids.split('|')
-        product_id_in_cart=list(set(product_id_in_cart))
-        product_id_in_cart.remove(str(pk))
-        products=models.Product.objects.all().filter(id__in = product_id_in_cart)
-        #for total price shown in cart after removing product
-        for p in products:
-            total=total+p.price
+    # context = get_cart_context(request)
+    # response = render(request, 'ecom/cart.html', context)
+    response = redirect('cart')
 
-        #  for update coookie value after removing product id in cart
-        value=""
-        for i in range(len(product_id_in_cart)):
-            if i==0:
-                value=value+product_id_in_cart[0]
+    if request.user.is_authenticated:
+        response.delete_cookie('product_ids')
+    else:
+        response.set_cookie('product_ids', updated_cookie_value)
+
+    return response 
+
+
+def decrement_cart_item_view(request, pk):
+    pk = int(pk)
+
+    if request.user.is_authenticated:
+        customer = models.Customer.objects.get(user=request.user)
+        try:
+            cart_item = models.Cart.objects.get(customer=customer, product_id=pk)
+            cart_item.quantity -= 1
+            if cart_item.quantity <= 0:
+                cart_item.delete()
             else:
-                value=value+"|"+product_id_in_cart[i]
-        response = render(request, 'ecom/cart.html',{'products':products,'total':total,'product_count_in_cart':product_count_in_cart})
-        if value=="":
-            response.delete_cookie('product_ids')
-        response.set_cookie('product_ids',value)
+                cart_item.total_price = cart_item.quantity * cart_item.product.price
+                cart_item.save()
+        except models.Cart.DoesNotExist:
+            pass
+
+    elif 'product_ids' in request.COOKIES:
+        product_ids = request.COOKIES['product_ids']
+        product_dict = {
+            int(pid): int(count)
+            for pid, count in (pair.split(':') for pair in product_ids.split('|'))
+        }
+        if pk in product_dict:
+            product_dict[pk] -= 1
+            if product_dict[pk] <= 0:
+                del product_dict[pk]
+        updated_cookie_value = '|'.join(f"{pid}:{count}" for pid, count in product_dict.items())
+    else:
+        updated_cookie_value = None
+
+    # context = get_cart_context(request)
+    # response = render(request, 'ecom/cart.html', context)
+    response = redirect('cart')
+
+    if request.user.is_authenticated or not updated_cookie_value:
+        response.delete_cookie('product_ids')
+    elif updated_cookie_value:
+        response.set_cookie('product_ids', updated_cookie_value)
+
+    return response
+    
+def clear_cart_view(request):
+    if str(request.user) != "AnonymousUser":
+        customer = models.Customer.objects.get(user=request.user)
+        models.Cart.objects.filter(customer=customer).delete()
+        product_count_in_cart = 0
+        return render(request, 'ecom/cart.html', {
+            'products_with_quantity': [],
+            'total': 0,
+            'product_count_in_cart': product_count_in_cart
+        })
+    else:
+        response = render(request, 'ecom/cart.html', {
+            'products_with_quantity': [],
+            'total': 0,
+            'product_count_in_cart': 0
+        })
+        response.delete_cookie('product_ids')
+        return response
+    
+def sync_cookie_cart_to_db(request):
+    if 'product_ids' in request.COOKIES and str(request.user) != "AnonymousUser":
+        product_ids = request.COOKIES['product_ids']
+        product_dict = {
+            int(pid): int(count)
+            for pid, count in (pair.split(':') for pair in product_ids.split('|'))
+        }
+
+        customer = models.Customer.objects.get(user=request.user)
+
+        for pid, count in product_dict.items():
+            product = models.Product.objects.get(id=pid)
+
+            cart_item, created = models.Cart.objects.get_or_create(
+                customer=customer,
+                product=product,
+                defaults={'quantity': count, 'total_price': product.price * count}
+            )
+
+            if not created:
+                cart_item.quantity = max(cart_item.quantity, count)  # or += count
+                cart_item.total_price = cart_item.quantity * product.price
+                cart_item.save()
+
+        response = redirect('cart')  # or wherever you want to land post-login
+        response.delete_cookie('product_ids')
         return response
 
-
-def send_feedback_view(request):
-    feedbackForm=forms.FeedbackForm()
-    if request.method == 'POST':
-        feedbackForm = forms.FeedbackForm(request.POST)
-        if feedbackForm.is_valid():
-            feedbackForm.save()
-            return render(request, 'ecom/feedback_sent.html')
-    return render(request, 'ecom/send_feedback.html', {'feedbackForm':feedbackForm})
 
 
 #---------------------------------------------------------------------------------
 #------------------------ CUSTOMER RELATED VIEWS START ------------------------------
 #---------------------------------------------------------------------------------
 @login_required(login_url='customerlogin')
-@user_passes_test(is_customer)
+@user_passes_test(is_customer , login_url='customerlogin')
 def customer_home_view(request):
-    products=models.Product.objects.all()
-    if 'product_ids' in request.COOKIES:
-        product_ids = request.COOKIES['product_ids']
-        counter=product_ids.split('|')
-        product_count_in_cart=len(set(counter))
+    products_list = models.Product.objects.all().order_by('id')
+
+    # Pagination - 9 products per page
+    paginator = Paginator(products_list, 9)
+    page_number = request.GET.get('page')
+    products = paginator.get_page(page_number)
+    
+    if str(request.user) == "AnonymousUser":
+        if 'product_ids' in request.COOKIES:
+            product_ids = request.COOKIES['product_ids']
+            counter=product_ids.split('|')
+            product_count_in_cart=len(set(counter))
+        else:
+            product_count_in_cart=0
     else:
-        product_count_in_cart=0
+        cart_data = get_cart_context(request)
+        product_count_in_cart = cart_data["product_count_in_cart"]
+    
     return render(request,'ecom/customer_home.html',{'products':products,'product_count_in_cart':product_count_in_cart})
 
 
@@ -386,129 +823,71 @@ def customer_home_view(request):
 # shipment address before placing order
 @login_required(login_url='customerlogin')
 def customer_address_view(request):
-    # this is for checking whether product is present in cart or not
-    # if there is no product in cart we will not show address form
-    product_in_cart=False
-    if 'product_ids' in request.COOKIES:
-        product_ids = request.COOKIES['product_ids']
-        if product_ids != "":
-            product_in_cart=True
-    #for counter in cart
-    if 'product_ids' in request.COOKIES:
-        product_ids = request.COOKIES['product_ids']
-        counter=product_ids.split('|')
-        product_count_in_cart=len(set(counter))
-    else:
-        product_count_in_cart=0
+    cart_context = get_cart_context(request)
+    product_in_cart = cart_context['product_count_in_cart'] > 0
 
     addressForm = forms.AddressForm()
     if request.method == 'POST':
         addressForm = forms.AddressForm(request.POST)
-        if addressForm.is_valid():
-            # here we are taking address, email, mobile at time of order placement
-            # we are not taking it from customer account table because
-            # these thing can be changes
+        if addressForm.is_valid() and product_in_cart:
             email = addressForm.cleaned_data['Email']
-            mobile=addressForm.cleaned_data['Mobile']
+            mobile = addressForm.cleaned_data['Mobile']
             address = addressForm.cleaned_data['Address']
-            #for showing total price on payment page.....accessing id from cookies then fetching  price of product from db
-            
-            priceDetails = calculateCheckOutPrice(request)
-            
-            total = priceDetails["total"]
-            products = priceDetails["products"]
-                
-            line_items = []        
-            for product in products:
-                line_items.append({
-                    'price_data': {
-                        'currency': 'inr',
-                        'unit_amount': product.price * 100,
-                        'product_data': {
-                            'name': product.name,
-                            'description':product.description,
-                        },
-                    },
-                    'quantity': 1,
-                })
-                
+
             transaction_id = str(uuid.uuid4())
-            
-            context = {
-                'total': total,
-                'stripe_publishable_key': os.environ.get('STRIPE_PUBLISHABLE_KEY', 'pk_test_your_stripe_publishable_key')
-            }
-            response = render(request, 'ecom/payment.html', context)
+
+            response = render(request, 'ecom/payment.html', {
+                'total': cart_context['total'],
+                'products_with_quantity': cart_context['products_with_quantity'],
+                'stripe_publishable_key': settings.STRIPE_PUBLISHABLE_KEY
+            })
             response.set_cookie('email', email)
             response.set_cookie('mobile', mobile)
             response.set_cookie('address', address)
-            response.set_cookie('transaction_id' , transaction_id)
+            response.set_cookie('transaction_id', transaction_id)
             return response
-    return render(request,'ecom/customer_address.html',{'addressForm':addressForm,'product_in_cart':product_in_cart,'product_count_in_cart':product_count_in_cart})
+
+    return render(request, 'ecom/customer_address.html', {
+        'addressForm': addressForm,
+        'product_in_cart': product_in_cart,
+        'product_count_in_cart': cart_context['product_count_in_cart']
+    })
 
 
 
 
-# here we are just directing to this view...actually we have to check whther payment is successful or not
-#then only this view should be accessed
 @csrf_exempt
+@validated_payment_required
 def payment_success_view(request):
-    # Here we will place order | after successful payment
-    # we will fetch customer  mobile, address, Email
-    # we will fetch product id from cookies then respective details from db
-    # then we will create order objects and store in db
-    # after that we will delete cookies because after order placed...cart should be empty
-    
-    print("Payment Success - GET params:", request.GET)
-    print("Payment Success - POST params:", request.POST)
-
     customer = None
     if request.user.is_authenticated:
         try:
-            customer = models.Customer.objects.get(user_id=request.user.id)
-            print("got customer id: " ,request.user.id)
+            customer = models.Customer.objects.get(user=request.user)
         except models.Customer.DoesNotExist:
             pass
 
-    products = None
-    if 'product_ids' in request.COOKIES:
-        product_ids = request.COOKIES['product_ids']
-        if product_ids != "":
-            product_id_in_cart = product_ids.split('|')
-            products = models.Product.objects.all().filter(id__in=product_id_in_cart)
+    cart_context = get_cart_context(request)
+    products_with_quantity = cart_context['products_with_quantity']
 
-    email = request.COOKIES.get('email', None)
-    mobile = request.COOKIES.get('mobile', None)
-    address = request.COOKIES.get('address', None)
+    email = request.COOKIES.get('email')
+    mobile = request.COOKIES.get('mobile')
+    address = request.COOKIES.get('address')
+    transaction_id = request.COOKIES.get("transaction_id", str(uuid.uuid4()))
+    order_id = str(uuid.uuid4())
 
-    # For Stripe payments, try to get data from session metadata
-    # session_id = request.GET.get('stripe-session_id')
-    # print("session id: " , session_id)
-    # if request.GET.get('stripe-session_id'):
-    #     try:
-    #         session_id = request.GET.get('stripe-session_id')
-    #         print("session id: " , session_id)
-    #         session = stripe.checkout.Session.retrieve(session_id)
-    #         if session.metadata:
-    #             print(session.metadata)
-    #             email = session.metadata.get('user_email')
-    #             mobile = session.metadata.get('phone_number')
-    #             address = session.metadata.get('address')
-    #     except Exception as e:
-    #         print(f"Error retrieving Stripe session: {e}")
+    if not products_with_quantity:
+        error_message = ErrorMessageManager.getErrorMessage(1006)
+        log_payment_error(transaction_id, request.GET.get('payment_type', 'unknown'),
+                          error_message, request)
+        return render(request, 'ecom/payment_failed.html')
 
-    order_id = None
-    if products:
-        order_id = str(uuid.uuid4())
-        transaction_id = request.COOKIES.get("transaction_id" , str(uuid.uuid4()))
-        if request.GET.get('code') == "PAYMENT_ERROR":
-            # error_message = "payment failed"
-            error_message = ErrorMessageManager.getErrorMessage(1001)
-            PaymentLogger.log_error(transaction_id,request.GET.get('payment_type', 'unknown'), error_message, request , order_id=order_id , customer_email=request.COOKIES.get('email', None))
-    
-        for product in products:
-            try:
-                models.Orders.objects.get_or_create(
+    try:
+        with transaction.atomic():
+            for item in products_with_quantity:
+                product = item['product']
+                quantity = item['quantity']
+
+                models.Orders.objects.create(
                     customer=customer,
                     product=product,
                     status='Pending',
@@ -516,46 +895,31 @@ def payment_success_view(request):
                     mobile=mobile,
                     address=address,
                     order_id=order_id,
-                    transaction_id=transaction_id, 
+                    transaction_id=transaction_id,
+                    quantity=quantity
                 )
-                print(f"Order created for product: {product.name}")
-            except Exception as e:
-                # error_message = f'Order creation failed for {product.name}: {str(e)}'
-                error_message = ErrorMessageManager.getErrorMessage(1002)
-                log_payment_error(transaction_id,request.GET.get('payment_type', 'unknown'),
-                                error_message,
-                                request, order_id=order_id)
-    else:
-        # error_message = 'No products in cart'
-        error_message = ErrorMessageManager.getErrorMessage(1006)
-        log_payment_error(transaction_id,request.GET.get('payment_type', 'unknown'),
-                         error_message, request)
 
-    # if request.GET.get('payment_type') == "stripe":
-        # id = request.GET.get('id')
-        # amount = request.GET.get('amount')
-        # name = request.GET.get('name')
-        # email = request.GET.get('email')
-        
-        # data = {
-        #     "stripe_id": id,
-        #     "amount": float(amount)/100,
-        #     "name": name,
-        #     "email": email
-        # }
-        
-    print("Updating Payments")
-    # updatePaymentTransaction(request.GET , request.user.id , order_id)
-    PaymentTransactionManager.update_payment_transaction(request.COOKIES ,request.GET , request.user.id , order_id)
-    
+                models.Cart.objects.filter(customer=customer, product=product).delete()
 
+        # Log payment transaction after all orders succeed
+        PaymentTransactionManager.update_payment_transaction(
+            request.COOKIES, request.GET, request.user.id, order_id
+        )
+
+    except Exception as e:
+        error_message = ErrorMessageManager.getErrorMessage(1002)  # order creation failed
+        log_payment_error(transaction_id, request.GET.get('payment_type', 'unknown'),
+                          error_message, request, order_id=order_id)
+        return render(request, 'ecom/payment_failed.html')
+
+    # If everything succeeds → show success page
     res = render(request, 'ecom/payment_success.html')
     res.delete_cookie('product_ids')
     res.delete_cookie('email')
     res.delete_cookie('mobile')
     res.delete_cookie('address')
-    
     return res
+
 
 
 class PaymentTransactionManager:
@@ -617,19 +981,16 @@ class PaymentTransactionManager:
 #     PaymentTransactionManager.update_payment_transaction(queryParams, userId, order_id)
 
 # def updateStripeLogs(data):
-#     """Wrapper function to maintain compatibility"""
 #     StripeLogger.log_stripe_transaction(data)
 
 # def updatePhonepeLogs(data):
-#     """Wrapper function to maintain compatibility"""
 #     PhonepeLogger.log_phonepe_transaction(data)
 
 # def updateGooglepayLogs(data):
-#     """Wrapper function to maintain compatibility"""
 #     GooglePayLogger.log_googlepay_transaction(data)
 
 @login_required(login_url='customerlogin')
-@user_passes_test(is_customer)
+@user_passes_test(is_customer , login_url='customerlogin')
 def my_order_view(request):
     customer=models.Customer.objects.get(user_id=request.user.id)
     orders=models.Orders.objects.all().filter(customer_id = customer)
@@ -637,13 +998,29 @@ def my_order_view(request):
     for order in orders:
         ordered_product=models.Product.objects.all().filter(id=order.product.id)
         ordered_products.append(ordered_product)
+        
+    # Pagination - 9 orders per page
+    paginator = Paginator(list(zip(ordered_products, orders))[::-1], 5)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    if str(request.user) == "AnonymousUser":
+        if 'product_ids' in request.COOKIES:
+            product_ids = request.COOKIES['product_ids']
+            counter=product_ids.split('|')
+            product_count_in_cart=len(set(counter))
+        else:
+            product_count_in_cart=0
+    else:
+        cart_data = get_cart_context(request)
+        product_count_in_cart = cart_data["product_count_in_cart"]
 
-    return render(request,'ecom/my_order.html',{'data':zip(ordered_products,orders)})
+    return render(request,'ecom/my_order.html',{'data':page_obj , 'product_count_in_cart' : product_count_in_cart})
 
 
 
 
-#--------------for discharge patient bill (pdf) download and printing
+#--------------for bill (pdf) download and printing
 import io
 from xhtml2pdf import pisa
 from django.template.loader import get_template
@@ -660,7 +1037,7 @@ def render_to_pdf(template_src, context_dict):
     return
 
 @login_required(login_url='customerlogin')
-@user_passes_test(is_customer)
+@user_passes_test(is_customer , login_url='customerlogin')
 def download_invoice_view(request,orderID,productID):
     order=models.Orders.objects.get(id=orderID)
     product=models.Product.objects.get(id=productID)
@@ -687,14 +1064,26 @@ def download_invoice_view(request,orderID,productID):
 
 
 @login_required(login_url='customerlogin')
-@user_passes_test(is_customer)
+@user_passes_test(is_customer , login_url='customerlogin')
 def my_profile_view(request):
     customer=models.Customer.objects.get(user_id=request.user.id)
-    return render(request,'ecom/my_profile.html',{'customer':customer})
+    
+    if str(request.user) == "AnonymousUser":
+        if 'product_ids' in request.COOKIES:
+            product_ids = request.COOKIES['product_ids']
+            counter=product_ids.split('|')
+            product_count_in_cart=len(set(counter))
+        else:
+            product_count_in_cart=0
+    else:
+        cart_data = get_cart_context(request)
+        product_count_in_cart = cart_data["product_count_in_cart"]
+    
+    return render(request,'ecom/my_profile.html',{'customer':customer , 'product_count_in_cart' : product_count_in_cart})
 
 
 @login_required(login_url='customerlogin')
-@user_passes_test(is_customer)
+@user_passes_test(is_customer , login_url='customerlogin')
 def edit_profile_view(request):
     customer=models.Customer.objects.get(user_id=request.user.id)
     user=models.User.objects.get(id=customer.user_id)
@@ -714,24 +1103,6 @@ def edit_profile_view(request):
 
 
 
-#---------------------------------------------------------------------------------
-#------------------------ ABOUT US AND CONTACT US VIEWS START --------------------
-#---------------------------------------------------------------------------------
-def aboutus_view(request):
-    return render(request,'ecom/aboutus.html')
-
-def contactus_view(request):
-    sub = forms.ContactusForm()
-    if request.method == 'POST':
-        sub = forms.ContactusForm(request.POST)
-        if sub.is_valid():
-            email = sub.cleaned_data['Email']
-            name=sub.cleaned_data['Name']
-            message = sub.cleaned_data['Message']
-            send_mail(str(name)+' || '+str(email),message, settings.EMAIL_HOST_USER, settings.EMAIL_RECEIVING_USER, fail_silently = False)
-            return render(request, 'ecom/contactussuccess.html')
-    return render(request, 'ecom/contactus.html', {'form':sub})
-
 
 class PaymentProcessor:
 
@@ -739,23 +1110,16 @@ class PaymentProcessor:
         self.request = request
         self.amount_data = self.calculate_checkout_price()
         self.amount = self.amount_data["total"]
-        self.products = self.amount_data["products"]
+        self.products_with_quantity = self.amount_data["products_with_quantity"]
 
     def calculate_checkout_price(self):
-        total = 0
-        products = None
-        if 'product_ids' in self.request.COOKIES:
-            product_ids = self.request.COOKIES['product_ids']
-            if product_ids != "":
-                product_id_in_cart = product_ids.split('|')
-                products = models.Product.objects.all().filter(id__in=product_id_in_cart)
-                for p in products:
-                    total = total + p.price
-
+        cart_context = get_cart_context(self.request)
         return {
-            'total': total,
-            'products': products,
+            'total': cart_context['total'],
+            'products_with_quantity': cart_context['products_with_quantity']
         }
+
+
 
     def validate_cart(self):
         if self.amount <= 0:
@@ -828,6 +1192,8 @@ def calculate_sha256_string(input_string):
     sha256 = hashes.Hash(hashes.SHA256(), backend=default_backend())
     sha256.update(input_string.encode('utf-8'))
     return sha256.finalize().hex()
+    # import hashlib
+    # return hashlib.sha256(input_string.encode('utf-8')).hexdigest()
 
 def base64_encode(input_dict):
     json_data = jsons.dumps(input_dict)
@@ -858,8 +1224,20 @@ class StripePaymentProcessor(PaymentProcessor):
 
         customer_data = self.get_customer_data()
         line_items = self.create_line_items()
-
+        
         try:
+            payment_session = create_payment_session(
+                transaction_id=transaction_id,
+                payment_type='stripe',
+                user_id=self.request.user.id if self.request.user.is_authenticated else None,
+                customer_email=customer_data['email'],
+                amount=float(self.amount),
+                cart_data={'products': [{'id': item['product'].id, 'quantity': item['quantity']} for item in self.products_with_quantity]},
+                shipping_details=customer_data
+            )
+            payment_session.status = 'INITIATED'
+            payment_session.save()
+
             stripe.Customer.create()
             checkout_session = stripe.checkout.Session.create(
                 payment_method_types=['card'],
@@ -867,11 +1245,12 @@ class StripePaymentProcessor(PaymentProcessor):
                 metadata={
                     'user_email': customer_data['email'],
                     'phone_number': customer_data['mobile'],
-                    'address': customer_data['address']
+                    'address': customer_data['address'],
+                    'transaction_id': transaction_id  # Include transaction_id in metadata
                 },
                 mode='payment',
-                success_url="http://127.0.0.1:8000/validate-payment?stripe-session_id={CHECKOUT_SESSION_ID}",
-                cancel_url='http://127.0.0.1:8000/cart',
+                success_url=f"http://{settings.LOCALHOST_IP}:8000/validate-payment?stripe-session_id={{CHECKOUT_SESSION_ID}}",
+                cancel_url=f'http://{settings.LOCALHOST_IP}:8000/cart',
             )
             return redirect(checkout_session.url)
 
@@ -883,8 +1262,13 @@ class StripePaymentProcessor(PaymentProcessor):
             return redirect('cart')
 
     def create_line_items(self):
+        
+        # products_with_quantity = models.Cart.objects.filter(customer_id = request.user)
+        
         line_items = []
-        for product in self.products:
+        for item in self.products_with_quantity:
+            product = item['product']
+            quantity = item['quantity']
             line_items.append({
                 'price_data': {
                     'currency': 'inr',
@@ -894,9 +1278,10 @@ class StripePaymentProcessor(PaymentProcessor):
                         'description': product.description,
                     },
                 },
-                'quantity': 1,
+                'quantity': quantity,
             })
         return line_items
+
 
 class StripeLogger(PaymentLogger):
 
@@ -941,7 +1326,21 @@ class PhonepePaymentProcessor(PaymentProcessor):
             messages.error(self.request, error_msg)
             return redirect('customer-address')
 
+        customer_data = self.get_customer_data()
+        
         try:
+            payment_session = create_payment_session(
+                transaction_id=transaction_id,
+                payment_type='phonepe',
+                user_id=self.request.user.id if self.request.user.is_authenticated else None,
+                customer_email=customer_data['email'],
+                amount=float(self.amount),
+                cart_data={'products': [{'id': item['product'].id, 'quantity': item['quantity']} for item in self.products_with_quantity]},
+                shipping_details=customer_data
+            )
+            payment_session.status = 'INITIATED'
+            payment_session.save()
+            
             # transaction_id = shortuuid.uuid()
             payload = self.create_payment_payload(transaction_id)
 
@@ -958,6 +1357,7 @@ class PhonepePaymentProcessor(PaymentProcessor):
             )
 
             responseData = response.json()
+            # print(f"{responseData=}")
             if responseData.get('success') and 'data' in responseData and 'instrumentResponse' in responseData['data']:
                 return redirect(responseData['data']['instrumentResponse']['redirectInfo']['url'])
             else:
@@ -985,6 +1385,7 @@ class PhonepePaymentProcessor(PaymentProcessor):
             "mobileNumber": "9999999999",
             "paymentInstrument": {"type": "PAY_PAGE"}
         }
+
 
 class PhonepeLogger(PaymentLogger):
 
@@ -1017,16 +1418,28 @@ class GooglePayPaymentProcessor(PaymentProcessor):
             PaymentLogger.log_error(transaction_id,'google-pay', error_message, self.request,customer_email=customer_email)
             return JsonResponse({"error": "Invalid request method"}, status=400)
 
+        customer_data = self.get_customer_data()
+        
         try:
+            payment_session = create_payment_session(
+                transaction_id=transaction_id,
+                payment_type='google-pay',
+                user_id=self.request.user.id if self.request.user.is_authenticated else None,
+                customer_email=customer_data['email'],
+                amount=float(self.amount),
+                cart_data={'products': [{'id': item['product'].id, 'quantity': item['quantity']} for item in self.products_with_quantity]},
+                shipping_details=customer_data
+            )
+            payment_session.status = 'INITIATED'
+            payment_session.save()
+            
             payment_data = self.request.POST.get("paymentData")
             if not payment_data:
-                # error_message = 'Missing payment data'
                 error_message = ErrorMessageManager.getErrorMessage(1013)
                 PaymentLogger.log_error(transaction_id,'google-pay', error_message, self.request,customer_email=customer_email)
                 return JsonResponse({"error": "Missing payment data"}, status=400)
 
             if self.amount <= 0:
-                # error_message = 'Cart is empty'
                 error_message = ErrorMessageManager.getErrorMessage(1006)
                 PaymentLogger.log_error(transaction_id,'google-pay', error_message, self.request, amount=self.amount,customer_email=customer_email)
                 return JsonResponse({"error": "Invalid amount"}, status=400)
@@ -1043,7 +1456,7 @@ class GooglePayPaymentProcessor(PaymentProcessor):
             )
 
             if charge.status == "succeeded":
-                url = self.construct_redirect_url("google-pay", payment_json, settings.HOST+"payment-success", self.amount)
+                url = PaymentRedirectManager.construct_redirect_url("google-pay", payment_json, settings.HOST+"payment-success", self.amount)
                 return redirect(url)
             else:
                 # error_message = f'Payment failed with status: {charge.status}'
@@ -1104,12 +1517,24 @@ class PaymentValidator:
         if request.GET.get('stripe-session_id'):
             session_id = request.GET.get('stripe-session_id')
             session = stripe.checkout.Session.retrieve(session_id)
-            url = PaymentRedirectManager.construct_redirect_url("stripe", session, settings.HOST+"payment-success")
-            return redirect(url)
+            # print("Stripe session: " , session)
+            if session and session.get("payment_status" , None) == "paid":
+                url = PaymentRedirectManager.construct_redirect_url("stripe", session, settings.HOST+"payment-success")
+                return redirect(url)
+            
+            return redirect('cart')
 
         if request.POST.get('merchantId'):
-            url = PaymentRedirectManager.construct_redirect_url("phonepe", request.POST, settings.HOST+"payment-success")
+            # print(f"{request.POST=}")
+            if request.POST.get('code') == "PAYMENT_SUCCESS":
+                url = PaymentRedirectManager.construct_redirect_url("phonepe", request.POST, settings.HOST+"payment-success")
+            elif request.POST.get('code') in ['PAYMENT_ERROR' , 'PAYMENT_PENDING']:
+                url = "payment-failed"
             return redirect(url)
+
+@user_passes_test(is_customer,'customerlogin')
+def payment_failed_view(request):
+    return render(request , "ecom/payment_failed.html")
 
 
 @csrf_exempt
@@ -1121,6 +1546,106 @@ class PaymentRedirectManager:
     @staticmethod
     def construct_redirect_url(payment_type, data, redirect_url, gpay_amount=None):
         url = redirect_url
+        
+        transaction_id = None
+        validation_token = None
+        
+        if payment_type == "stripe":
+            transaction_id = data.get('metadata', {}).get('transaction_id') or str(uuid.uuid4())
+        elif payment_type == "phonepe":
+
+            phonepe_transaction_id = data.get('transactionId')
+            
+            try:
+                from django.conf import settings
+                merchant_id = data.get('merchantId', getattr(settings, 'PHONEPE_MERCHANT_ID', 'PGTESTPAYUAT86'))
+                amount_from_response = data.get('amount', 0)
+                
+                from django.utils import timezone
+                from datetime import timedelta
+                recent_time = timezone.now() - timedelta(minutes=30)  # Looking for sessions in last 30 minutes
+                
+                print(f"Looking for PhonePe sessions with amount: {amount_from_response} (paisa)")
+                
+                potential_sessions = models.PaymentSession.objects.filter(
+                    payment_type='phonepe',
+                    status__in=['PENDING', 'INITIATED'],
+                    created_at__gte=recent_time
+                ).order_by('-created_at')
+                
+                print(f"Found {len(potential_sessions)} potential PhonePe sessions")
+                
+                for i, session in enumerate(potential_sessions[:5]):
+                    print(f"  Session {i+1}: transaction_id={session.transaction_id}, amount={session.amount}, status={session.status}")
+                
+                expected_amount = float(amount_from_response) / 100 if amount_from_response else 0
+                
+                matching_session = None
+                for session in potential_sessions:
+                    if abs(float(session.amount) - expected_amount) < 0.01:
+                        break
+                
+                if matching_session:
+                    transaction_id = matching_session.transaction_id
+                    print(f"Found matching PhonePe session: {transaction_id} for amount {expected_amount}")
+                else:
+                    print(f"No matching PhonePe session found for amount {expected_amount}")
+                    transaction_id = phonepe_transaction_id
+                    
+            except Exception as e:
+                print(f"Error finding PhonePe session: {e}")
+                transaction_id = phonepe_transaction_id
+        elif payment_type == "google-pay":
+            try:
+                from django.utils import timezone
+                from datetime import timedelta
+                recent_time = timezone.now() - timedelta(minutes=30)
+                
+                expected_amount = float(gpay_amount) if gpay_amount else 0
+                
+                print(f"Looking for Google Pay sessions with amount: {expected_amount}")
+                
+                potential_sessions = models.PaymentSession.objects.filter(
+                    payment_type='google-pay',
+                    status__in=['PENDING', 'INITIATED'],
+                    created_at__gte=recent_time
+                ).order_by('-created_at')
+                
+                print(f"Found {len(potential_sessions)} potential Google Pay sessions")
+                
+                matching_session = None
+                for session in potential_sessions:
+                    if abs(float(session.amount) - expected_amount) < 0.01:
+                        matching_session = session
+                        break
+                
+                if matching_session:
+                    transaction_id = matching_session.transaction_id
+                    print(f"Found matching Google Pay session: {transaction_id} for amount {expected_amount}")
+                else:
+                    print(f"No matching Google Pay session found for amount {expected_amount}")
+                    transaction_id = str(uuid.uuid4())
+                    
+            except Exception as e:
+                print(f"Error finding Google Pay session: {e}")
+                transaction_id = str(uuid.uuid4())
+        
+        try:
+            payment_session = models.PaymentSession.objects.get(transaction_id=transaction_id, payment_type=payment_type)
+            print(f"Found payment session: {payment_session.session_id}, status: {payment_session.status}")
+            
+            if payment_session.can_be_validated():
+                provider_response = dict(data) if isinstance(data, dict) else {}
+                payment_session.mark_as_validated(provider_response)
+                validation_token = payment_session.validation_token
+                print(f"Session validated successfully, validation_token: {validation_token[:20]}...")
+            else:
+                validation_token = None
+                print(f"Session cannot be validated - status: {payment_session.status}, expired: {payment_session.is_expired()}")
+                
+        except models.PaymentSession.DoesNotExist:
+            validation_token = None
+            print(f"No payment session found for transaction_id: {transaction_id}, payment_type: {payment_type}")
 
         if payment_type == "google-pay":
             tokenizationData = jsons.loads(data['paymentMethodData']['tokenizationData']['token'])
@@ -1143,6 +1668,7 @@ class PaymentRedirectManager:
             url += f"?payment_type={payment_type}&id={id}&amount={amount}&email={email}&name={name}"
 
         elif payment_type == "phonepe":
+            from urllib.parse import quote
             code = data.get('code')
             merchantId = data.get('merchantId')
             transactionId = data.get('transactionId')
@@ -1150,7 +1676,16 @@ class PaymentRedirectManager:
             providerReferenceId = data.get('providerReferenceId')
             checksum = data.get('checksum')
 
-            url += f"?payment_type={payment_type}&code={code}&merchantId={merchantId}&transactionId={transactionId}&amount={amount}&providerReferenceId={providerReferenceId}&checksum={checksum}"
+            checksum_encoded = quote(str(checksum), safe='') if checksum else checksum
+            
+            url += f"?payment_type={payment_type}&code={code}&merchantId={merchantId}&transactionId={transactionId}&amount={amount}&providerReferenceId={providerReferenceId}&checksum={checksum_encoded}"
+
+        if validation_token:
+            url += f"&validation_token={validation_token}"
+            print(f"Final URL with validation token: {url}")
+        else:
+            print(f"Warning: No validation token found for payment session {transaction_id}")
+            print(f"Final URL without validation token: {url}")
 
         return url
 
@@ -1177,8 +1712,8 @@ from email.mime.text import MIMEText
 class EmailService:
     
     def __init__(self , mail):
-        self.fromMail = 'spmproject66@gmail.com' 
-        self.appPassword = 'mqot ougz ojjl vwcl'
+        self.fromMail = settings.EMAIL_HOST_USER
+        self.appPassword = settings.EMAIL_APP_PASSWORD
         self.toMail = mail
     
         
@@ -1217,6 +1752,8 @@ import numpy as np
 from .FaceRecognition import live_recognition , capture_images , encode_faces
 from django.contrib.auth import login
 import time
+import re
+from html import unescape
 
 @csrf_exempt
 def get_res(request):
@@ -1251,8 +1788,8 @@ def get_res(request):
                 detected_username = user['first_name']
                 detected_user_entry = models.User.objects.get(id=detected_userid)
                 login(request, detected_user_entry)
-                print("-------------------------------------")
-                print(detected_user_entry)
+                # print("-------------------------------------")
+                # print(detected_user_entry)
                 resData = {
                     'user_id': detected_userid,
                     'username': detected_username,
@@ -1302,3 +1839,511 @@ def save_frame(request):
     time.sleep(1)
     return JsonResponse(resData)
     # return JsonResponse({"res": "hello"})
+ 
+from pathlib import Path
+from .ResumeParser.main import process_resumes
+
+def strip_html_tags(html_content):
+    if not html_content:
+        return ""
+
+    # Replace block-level HTML tags with newlines to preserve structure
+    block_tags = r'</?(div|p|br|h[1-6]|li|ul|ol|blockquote|pre)[^>]*>'
+    clean_text = re.sub(block_tags, '\n', html_content, flags=re.IGNORECASE)
+
+    # Remove all remaining HTML tags
+    clean_text = re.sub(r'<[^>]+>', '', clean_text)
+
+    # Unescape HTML entities (like &nbsp;, &amp;, etc.)
+    clean_text = unescape(clean_text)
+
+    # Clean up multiple consecutive newlines but preserve single newlines
+    clean_text = re.sub(r'\n\s*\n', '\n\n', clean_text)
+
+    # Remove extra spaces within lines but keep newlines
+    clean_text = re.sub(r'[ \t]+', ' ', clean_text)
+
+    # Remove leading/trailing whitespace from each line
+    lines = [line.strip() for line in clean_text.split('\n')]
+    clean_text = '\n'.join(line for line in lines if line)
+
+    return clean_text.strip()
+
+# Context processor for dynamic job navigation
+def job_navigation_context(request):
+    try:
+        jobs = models.CreateJob.objects.all()
+        return {'available_jobs': jobs}
+    except:
+        return {'available_jobs': []}
+    
+@login_required(login_url='adminlogin')
+@user_passes_test(is_admin , login_url='adminlogin')
+def create_new_job(request):
+    
+    if request.method == "POST":
+        createjobform = forms.CreateJobForm(request.POST)
+        print("createjobform.is_valid(): " , createjobform.is_valid())
+        if createjobform.is_valid():
+            job_description_html = createjobform.cleaned_data.get('job_description', '').strip()
+            if not job_description_html:
+                createjobform.add_error('job_description', 'This field is required.')
+            else:
+                # Strip HTML tags to get plain text for resume analysis
+                job_description_plain = strip_html_tags(job_description_html)
+
+                job = createjobform.save(commit=False)
+                job.job_description = job_description_plain
+                job.job_description_html = job_description_html
+                job.save()
+                
+                new_job_resume_directory_path = settings.RESUMES_DIR / job.job_code
+                new_job_resume_directory_path.mkdir(exist_ok=True)
+            
+            
+            #   Create Boiler JSON for new JD
+            # new_job_output_directory_path = settings.OUTPUT_DIR / job.job_code
+            # new_job_output_directory_path.mkdir(exist_ok=True)
+            # # filename = settings.OUTPUT_FILENAME + "_" +job_type + ".json"
+            # output_file_path = new_job_output_directory_path / (settings.OUTPUT_FILENAME + "_" +job.job_code.lower()+".json")
+            # try:
+            #     with open(output_file_path , "w" , encoding="utf-8") as json_file:
+            #         temp = json.loads(settings.JSON_BOILERPLATE)
+            #         json.dump(temp , json_file, indent=2, ensure_ascii=False)
+            # except (FileNotFoundError , json.JSONDecodeError):
+            #     print(f"{output_file_path} is not found.")
+            
+            mydict = {"jobcreated" : True}
+            return render(request , "resumeparser/jobcreated.html" , context=mydict)
+        else:
+            print("Form is invalid. Errors:", createjobform.errors)
+            mydict = {"createjobform": createjobform, "form_errors": createjobform.errors}
+            return render(request , "resumeparser/create-new-job.html" , context=mydict)
+    createjobform = forms.CreateJobForm()
+    mydict = {"createjobform": createjobform}
+    return render(request , "resumeparser/create-new-job.html" , context=mydict)
+
+@login_required(login_url='adminlogin')
+@user_passes_test(is_admin , login_url='adminlogin')
+def manage_jobs(request):
+    
+    job_list = models.CreateJob.objects.all().values()
+    
+    # print(list(job_list))
+    mydict = {"job_list" : job_list}
+    
+    
+    return render(request , "resumeparser/manage-jobs.html" , context=mydict)
+
+
+def apply_job(request , job_code):
+
+    # Get job details for the given job_code
+    try:
+        job_details = models.CreateJob.objects.get(job_code=job_code)
+    except models.CreateJob.DoesNotExist:
+        # Handle case where job doesn't exist
+        return render(request, "resumeparser/job-not-found.html", {"job_code": job_code})
+
+    if request.method == "POST":
+        applyjobform = forms.ApplyJobForm(request.POST, request.FILES)
+        if applyjobform.is_valid():
+            job = applyjobform.save(commit=False)  # Don't save yet
+            job.job_code = job_code  # 👈 Set it from URL or your logic
+            # Get the actual filename and clean it to match the file system
+            original_filename = str(job.resume).split("/")[-1]
+            job.resume_filename = models.clean_filename(original_filename)
+            job.save()
+            mydict = {"jobformsubmitted": True}
+            return render(request, "resumeparser/jobformsubmitted.html", context=mydict)
+        else:
+            print("👈",applyjobform.errors)  # 👈 Debug: shows why the form failed!
+            mydict = {"jobformsubmitted": False}
+            return render(request, "resumeparser/jobformsubmitted.html", context=mydict)
+
+
+
+    applyjobform = forms.ApplyJobForm(initial={"job_code" : job_code})
+
+    mydict = {
+        "applyjobform" : applyjobform,
+        "jobcode" : job_code,
+        "job_details": job_details
+    }
+    return render(request , "resumeparser/apply-job-form.html" , context=mydict)
+
+@login_required(login_url='adminlogin')
+@user_passes_test(is_admin , login_url='adminlogin')
+def job_detail(request , job_code):
+    # print(job_code)
+
+    job_applications = models.ApplyJob.objects.all().filter(job_code = job_code)
+    job_details = models.CreateJob.objects.get(job_code=job_code)
+    
+    total_applications = len(job_applications)
+    
+    # Pagination - 9 applications per page
+    paginator = Paginator(job_applications, 9)
+    page_number = request.GET.get('page')
+    job_applications = paginator.get_page(page_number)
+    
+    
+    # print(job_details.id)
+    # print(job_details)
+    # print(job_applications)
+    mydict = {
+        "job_applications" : job_applications,
+        "applications_count": total_applications,
+        "job_id": job_details.id,
+        "job_code": job_code,
+    }
+    
+    # print(job_applications[0].resume.url)
+    return render(request , "resumeparser/job-detail.html" , context=mydict)
+
+        
+@login_required(login_url='adminlogin')
+@user_passes_test(is_admin , login_url='adminlogin')
+@csrf_exempt
+def view_analysis(request , job_code):
+    mydict = {
+        "job_code": job_code,
+    }
+    
+    if request.method == "POST":
+        data = json.loads(request.body)
+        print("data: " , data)
+
+        try:
+            candidate_filename = data.pop("candidate_filename")
+            print("candidate_filename: " , candidate_filename)
+
+            apply_job = get_unique_apply_job_by_filename(candidate_filename, job_code)
+
+            # print("apply_job: " , apply_job)
+
+            if not apply_job:
+                raise Exception(f"No unique ApplyJob found for candidate '{candidate_filename}' in job code '{job_code}'")
+
+            # created = create_or_update_resume_attribute(apply_job, data, str(request.user))
+            created = create_or_update_custom_attributes_db(candidate_filename, job_code , data , str(request.user))
+            if not created:
+                raise Exception("Something went wrong")
+
+            print("Resume attributes saved successfully")
+        except Exception as e:
+            print("Unable to create resume attributes: " , e)
+        
+        
+    
+    job = models.CreateJob.objects.get(job_code = job_code)
+
+
+    # filename = filename + ".json"
+    # filepath = settings.OUTPUT_DIR / job_code / filename
+    # print("filepath: ",filepath)
+    # Path().read_text(encoding="utf-8")
+    # try:
+    #     file_content = json.loads(filepath.read_text(encoding="utf-8"))
+    # except json.JSONDecodeError:
+    #     file_content = json.loads(settings.JSON_BOILERPLATE)
+    #     filepath.write_text(json.dumps(file_content ,indent=2, ensure_ascii=False) , encoding="utf-8")
+    # # print(file_content["meta"])
+    
+    
+    # ResumeAttributes SECTION
+    
+    # Get all resume attributes and organize them by candidate name
+    resume_attributes = models.ResumeAttributes.objects.select_related('apply_resume').filter(apply_resume__job_code = job_code)
+    # print("resume_attributes: " , resume_attributes)
+
+    # Create a dictionary to map candidate names to their attributes
+    attributes_by_candidate = {}
+    for resume_attribute in resume_attributes:
+        try:
+            custom_attributes = json.loads(resume_attribute.custom_attributes)
+
+            candidate_name = resume_attribute.apply_resume.name
+            if candidate_name not in attributes_by_candidate:
+                attributes_by_candidate[candidate_name] = []
+
+            # Convert each key-value pair to individual attribute objects for JS compatibility
+            for attr_name, attr_value in custom_attributes.items():
+                attributes_by_candidate[candidate_name].append({
+                    'attribute_name': attr_name,
+                    'attribute_value': attr_value,
+                })
+
+        except (json.JSONDecodeError, AttributeError) as e:
+            print(f"Error parsing custom attributes for {resume_attribute.apply_resume.name}: {e}")
+            continue
+        
+    
+    
+
+    # print("attributes_by_candidate: ", attributes_by_candidate)
+    # ResumeAttributes SECTION
+    
+    analysis_data = get_results_by_job_code(job_code)
+    # print("analysis_data: ", analysis_data)
+    
+    # with open("test.json" , "w" , encoding='utf-8') as fp:
+    #     json.dump(analysis_data , fp , indent=2)
+    
+    # summary_statistics = calcuate_summary_statistics(analysis_data)
+    
+    unanalysed_data = get_unanalysed_data(job_code)
+     
+    file_content = {
+        "candidates" : analysis_data,
+        "job_description_html": job.job_description_html,
+        # "summary_statistics" : summary_statistics,
+        }
+
+    mydict["job_title"] = job.job_title
+    mydict["job_id"] = job.id
+    # mydict["filepath"] = filepath
+    mydict["file_content"] = file_content
+    mydict["file_content_dump"] = json.dumps(file_content)
+    # Removed resume_attributes QuerySet to prevent JSON serialization error
+    mydict["attributes_by_candidate"] = json.dumps(attributes_by_candidate)
+    mydict["unanalysed_data"] = json.dumps(unanalysed_data)
+    mydict["resume_batch_size"] = settings.RESUME_BATCH_SIZE
+    
+    
+    print(request.GET)
+    if request.GET.get("startAnalysis"):
+        print("Performing Analysis")
+        mydict["analysis_started"] = True
+        # return render(request , "resumeparser/view-analysis-file.html" , context=mydict)
+    
+    
+    return render(request , "resumeparser/view-analysis.html" , context=mydict)
+
+def calcuate_summary_statistics(analysis_data):
+    
+    
+    summary_statistics = dict()
+    
+    success_count = 0
+    score_sum = 0
+    score_distribution = {
+        "excellent" : 0,
+        "good": 0,
+        "average": 0,
+        "below_average": 0
+    }
+    
+    recommendations = {
+        "HIRE": 0,
+        "CONSIDER": 0,
+        "REJECT": 0
+    }
+    
+    try:
+        for data in analysis_data:
+            if data["success"] == True:
+                success_count += 1
+            
+            score_sum += data.get("scores" , {}).get("final_score" , 0)
+            
+            if data['scores']['final_score'] >= 90:
+                score_distribution["excellent"] += 1
+            if 80 <= data['scores']['final_score'] < 90:
+                score_distribution["good"] += 1
+            if 60 <= data['scores']['final_score'] < 80:
+                score_distribution["average"] += 1
+            if data['scores']['final_score'] < 60:
+                score_distribution["below_average"] += 1
+                print(data['scores']['final_score'])
+                
+            recommendations[data["recommendation"]["decision"]] += 1
+        
+        summary_statistics["total_candidates"] = len(analysis_data)
+        summary_statistics["successful_analyses"] = success_count
+        summary_statistics["average_score"] = score_sum / len(analysis_data)
+        summary_statistics["score_distribution"] = score_distribution
+        summary_statistics["recommendations"] = recommendations
+        
+        
+    except Exception as e:
+        print(f"Unable to Calculate summary statistics: {e}")
+            
+    
+    # print("score_distribution: ",score_distribution)
+    
+    return summary_statistics
+
+from .batch_analyzer import *
+
+
+@login_required(login_url='adminlogin')
+@user_passes_test(is_admin , login_url='adminlogin')
+@csrf_exempt
+def analyse_batch(request):
+    
+    if request.method == "POST":
+        data = json.loads(request.body)
+        # print("request.body: ",json.loads(request.body))
+        
+        job_id = data["job_id"]
+        job_code = data["job_code"]
+        batch_id = data["batch_id"]
+        resume_batch = data["batch"]
+        total_batches = data["total_batches"]
+        
+        batch_analyzer = BatchResumeAnalyzer()
+
+        responseData = batch_analyzer.analyse_resume_batch(
+            job_id,
+            job_code,
+            batch_id,
+            resume_batch,
+            total_batches
+        )
+    
+    
+    return JsonResponse(responseData)
+
+
+
+# @login_required(login_url='adminlogin')
+# @user_passes_test(is_admin , login_url='adminlogin')
+# @csrf_exempt
+# def analyse_resumes(request):
+#     mydict = {"analysisstarted" : True}
+
+#     if request.method == "POST":
+#         responseData = dict()
+#         data = json.loads(request.body)
+#         job = models.CreateJob.objects.get(id=data["job_id"])
+
+#         responseData["job_code"] = job.job_code
+
+#         job_description = job.job_description
+#         resume_dir = str(settings.RESUMES_DIR / job.job_code)
+#         output_dir = str(settings.OUTPUT_DIR / str(job.job_code))
+#         print("OUTPUT_DIR: ",output_dir)
+#         results = process_resumes(job_description , job.job_code)
+
+#         responseData["results"] = results
+#         responseData["analyseSuccess"] = True
+
+#         print("Go to page")
+#         return JsonResponse(responseData)
+
+#     return render(request , "resumeparser/view-analysis.html" , context=mydict)
+
+
+
+#             'message': f'Error clearing cache for job {job_code}: {str(e)}'
+#         })
+
+
+
+# def create_or_update_resume_attribute(apply_resume: models.ApplyJob , data: dict , created_by: str) -> bool:
+#     try:
+#         for key , value in data.items():
+#             # Skip candidate_name as it's not an attribute to store
+#             if key == "candidate_name":
+#                 continue
+
+#             resume_attribute, created = models.ResumeAttributes.objects.update_or_create(
+#                 apply_resume=apply_resume,
+#                 attribute_name=key,
+
+#                 defaults={
+#                     'attribute_value': str(value),
+#                     'created_by': created_by
+#                 }
+#             )
+
+#             log_created = create_resume_log(apply_resume, resume_attribute, key, value, created_by)
+
+#             if not log_created:
+#                 resume_attribute.delete()
+#                 raise Exception("unable to create Resume Log")
+        
+#     except Exception as e:
+#         print("Unable to create of update  resume attribute: " , e)
+        
+#         return False
+    
+#     return True
+
+# def create_resume_log(apply_resume: models.ApplyJob , resume_attribute: models.ResumeAttributes , attribute_name: str , attribute_value: str , created_by: str) -> bool:
+#     try:
+#         models.ResumeLogs.objects.create(
+#             apply_resume = apply_resume,
+#             resume_attribute = resume_attribute,
+#             attribute_name = attribute_name,
+#             attribute_value = attribute_value,
+#             created_by = created_by
+#         )
+#     except Exception as e:
+#         print("Unable to create resume log: " , e)
+#         return False
+    
+#     return True
+
+
+### -------     Chatbot Implementation     ---------
+
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from.Chatbot.rag_pipeline import get_chatbot_response
+
+# Initialize the RAG pipeline lazily to avoid startup issues
+# The pipeline will be initialized on first request
+# rag_initialized = False
+
+class ChatbotAPIView(APIView):
+    def post(self, request, *args, **kwargs):
+        # global rag_initialized
+
+        # # Initialize RAG pipeline on first request if not already done
+        # if not rag_initialized:
+        #     try:
+        #         initialize_rag_pipeline()
+        #         rag_initialized = True
+        #     except Exception as e:
+        #         print(f"Error initializing RAG pipeline: {e}")
+        #         return Response(
+        #             {"status": "Chatbot is initializing, please try again in a moment."},
+        #             status=status.HTTP_503_SERVICE_UNAVAILABLE
+        #         )
+
+        user_message = request.data.get('message')
+
+        if not user_message:
+            return Response(
+                {"error": "Message field is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            bot_response = get_chatbot_response(user_message)
+            return Response({"answer": bot_response}, status=status.HTTP_200_OK)
+        except Exception as e:
+            # Log the exception for debugging
+            print(f"Error during RAG chain invocation: {e}")
+            return Response(
+                {"error": "An error occurred while processing your request. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+
+### -------     Implementation Testing     ---------
+
+from .ResumeParser.resume_analyzer import ResumeAnalyzer
+
+
+def test(request):
+    mydict = {}
+
+    return render(request , "ecom/logout.html" , context=mydict)
+    # return render(request , "resumeparser/test.html" , context=mydict)
+

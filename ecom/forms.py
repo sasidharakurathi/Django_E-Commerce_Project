@@ -27,19 +27,42 @@ class AddressForm(forms.Form):
     Mobile= forms.IntegerField()
     Address = forms.CharField(max_length=500)
 
-class FeedbackForm(forms.ModelForm):
-    class Meta:
-        model=models.Feedback
-        fields=['name','feedback']
-
 #for updating status of order
 class OrderForm(forms.ModelForm):
     class Meta:
         model=models.Orders
         fields=['status']
+        
+class CreateJobForm(forms.ModelForm):
+    class Meta:
+        model = models.CreateJob
+        fields = ["job_code","job_title","job_description"]
+        widgets = {
+            'job_description': forms.Textarea(attrs={
+                'required': False,  # Remove HTML5 required validation to prevent focus issues with TinyMCE
+            })
+        }
+        
 
-#for contact us page
-class ContactusForm(forms.Form):
-    Name = forms.CharField(max_length=30)
-    Email = forms.EmailField()
-    Message = forms.CharField(max_length=500,widget=forms.Textarea(attrs={'rows': 3, 'cols': 30}))
+class ApplyJobForm(forms.ModelForm):
+    
+    class Meta:
+        model = models.ApplyJob
+        fields = ["name" , "email" , "contact_number" , "gender" , "dob", "resume"]
+        widgets = {
+            "email" : forms.EmailInput(),
+            "gender": forms.Select(),
+            "dob": forms.DateInput(attrs={'placeholder': 'Date Of Birth', 'type': 'date'}),
+            "resume": forms.FileInput(),
+        }
+        labels = {
+            "name": "Name",
+            "email": "Email",
+            "contact_number": "Contact Number",
+            "gender": "Gender",
+            "dob": "Date Of Birth",
+            "resume": "Resume",
+        }
+        
+
+

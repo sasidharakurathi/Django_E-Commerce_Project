@@ -1,61 +1,139 @@
-{% extends 'ecom/admin_base.html' %}
-{% load static %}
-{% block content %}
+{% extends 'ecom/admin_base.html' %} {% load static %} {% block content %}
+  <head>
+    <link href="//netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap.min.css" rel="stylesheet" id="bootstrap-css" />
+    <script src="//netdna.bootstrapcdn.com/bootstrap/3.0.0/js/bootstrap.min.js"></script>
+    <script src="//code.jquery.com/jquery-1.11.1.min.js"></script>
 
-
-<head>
-  <link href="//netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap.min.css" rel="stylesheet" id="bootstrap-css">
-  <script src="//netdna.bootstrapcdn.com/bootstrap/3.0.0/js/bootstrap.min.js"></script>
-  <script src="//code.jquery.com/jquery-1.11.1.min.js"></script>
-
-  <style media="screen">
-    a:link {
-      text-decoration: none;
-    }
-
-    h6 {
-      text-align: center;
-    }
-
-    .row {
-      margin: 100px;
-    }
-  </style>
-</head>
-<div class="container">
-  <div class="panel panel-primary">
-    <div class="panel-heading">
-      <h6 class="panel-title">Total Customer List</h6>
+    <style media="screen">
+      a:link {
+        text-decoration: none;
+      }
+      
+      h6 {
+        text-align: center;
+      }
+      
+      .row {
+        margin: 100px;
+      }
+      .pagination .page-link {
+        color: #3c8ce1ff;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        margin: 0 3px;
+        transition: all 0.3s ease;
+      }
+      
+      .pagination .page-link:hover {
+        background-color: #3c8ce1ff;
+        color: #fff;
+      }
+      
+      .pagination .active .page-link {
+        background-color: #3c8ce1ff;
+        border-color: #3c8ce1ff;
+        color: #fff;
+        font-weight: bold;
+      }
+      
+      .pagination-info {
+        font-size: 16px;
+        font-weight: 500;
+        color: #333333;
+      }
+      .container {
+        min-height: 80%;
+      }
+    </style>
+  </head>
+  <div class="container">
+    <div class="panel panel-primary">
+      <div class="panel-heading">
+        <h6 class="panel-title">Total Customer List</h6>
+      </div>
+      <table class="table table-hover" id="dev-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Profile Picture</th>
+            <th>Mobile</th>
+            <th>Address</th>
+            <th>Update</th>
+            <th>Delete</th>
+          </tr>
+        </thead>
+        {% for c in customers %}
+          <tr>
+            <td>{{ c.get_name }}</td>
+            <td>
+              {% if c.profile_pic %}
+                <img src="{{ c.profile_pic.url }}" alt="Profile Pic" height="40px" width="40px" />
+              {% else %}
+                <img src="{% static 'images/default-product.png' %}" alt="Profile Pic" height="40px" width="40px" />
+              {% endif %}
+            </td>
+            <td>{{ c.mobile }}</td>
+            <td>{{ c.address }}</td>
+            <td>
+              <a class="btn btn-primary btn-xs" href="{% url 'update-customer' c.id %}"><span class="glyphicon glyphicon-edit"></span></a>
+            </td>
+            <td>
+              <a class="btn btn-danger btn-xs" href="{% url 'delete-customer' c.id %}"><span class="glyphicon glyphicon-trash"></span></a>
+            </td>
+          </tr>
+        {% endfor %}
+      </table>
     </div>
-    <table class="table table-hover" id="dev-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Profile Picture</th>
-          <th>Mobile</th>
-          <th>Address</th>
-          <th>Update</th>
-          <th>Delete</th>
-        </tr>
-      </thead>
-      {% for c in customers %}
-      <tr>
-        <td> {{c.get_name}}</td>
-        <td>
-          {% if c.profile_pic %}
-          <img src="{{ c.profile_pic.url }}" alt="Profile Pic" height="40px" width="40px" />
-          {% else %}
-          <img src="{% static 'images/default-product.png' %}" alt="Profile Pic" height="40px" width="40px" />
-          {% endif %}
-        </td>
-        <td>{{c.mobile}}</td>
-        <td>{{c.address}}</td>
-        <td><a class="btn btn-primary btn-xs" href="{% url 'update-customer' c.id  %}"><span class="glyphicon glyphicon-edit"></span></a></td>
-        <td><a class="btn btn-danger btn-xs" href="{% url 'delete-customer' c.id  %}"><span class="glyphicon glyphicon-trash"></span></a></td>
-
-      </tr>
-      {% endfor %}
-    </table>
   </div>
-</div>
-{% endblock content %}
+
+  {% if customers.has_other_pages %}
+    <div class="pagination-container text-center my-4">
+      <nav aria-label="Job Application pagination">
+        <ul class="pagination justify-content-center">
+          {% if customers.has_previous %}
+            <li class="page-item">
+              <a class="page-link" href="?{% if query %} query={{ query }} & {% endif %}page=1">
+                First
+              </a>
+            </li>
+            <li class="page-item">
+              <a class="page-link"
+                href="?{% if query %} query={{ query }} & {% endif %} page={{ customers.previous_page_number }}">
+                Previous
+              </a>
+            </li>
+          {% endif %} {% for num in customers.paginator.page_range %}
+            {% if customers.number == num %}
+              <li class="page-item active">
+                <span class="page-link">{{ num }}</span>
+              </li>
+            {% elif num > customers.number|add:'-3' and num < customers.number|add:'3' %}
+              <li class="page-item">
+                <a class="page-link"
+                  href="?{% if query %} query={{ query }} & {% endif %}page={{ num }}">
+                  {{ num }}
+                </a>
+              </li>
+            {% endif %}
+          {% endfor %} {% if customers.has_next %}
+            <li class="page-item">
+              <a class="page-link"
+                href="?{% if query %} query={{ query }} & {% endif %} page={{ customers.next_page_number }}">
+                Next
+              </a>
+            </li>
+            <li class="page-item">
+              <a class="page-link"
+                href="?{% if query %} query={{ query }} & {% endif %} page={{ customers.paginator.num_pages }}">
+                Last
+              </a>
+            </li>
+          {% endif %}
+        </ul>
+      </nav>
+
+      <div class="pagination-info mt-3">Page {{ customers.number }} of {{ customers.paginator.num_pages }}
+        (Total: {{ customers.paginator.count }} Orders)</div>
+    </div>
+  {% endif %}
+{% endblock %}

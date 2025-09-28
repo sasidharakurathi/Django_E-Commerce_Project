@@ -1,0 +1,188 @@
+{% extends 'ecom/admin_base.html' %}
+{% load static %}
+
+{% block content %}
+
+<div class="main-container">
+
+    <div class="container mt-4" id="application-count">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <h2 class="mb-0 text-white fw-bold">Total Applications: <span>{{applications_count}}</span></h2>
+            <button type="button" class="btn btn-primary" onclick="window.location.href='{% url 'view-analysis' job_code %}'">View Analysis</button>
+        </div>
+    </div>
+
+    <div class="container mt-4">
+        <h2 class="mb-4 text-primary fw-bold">Job Applications</h2>
+        <div class="row">
+            {% if applications_count > 0 %}
+                {% for application in job_applications %}
+                <div class="col-12 col-md-6 col-lg-4 mb-4">
+                    <div class="card shadow-sm border-0 h-100">
+                        <div class="card-header bg-gradient text-white" style="background: linear-gradient(90deg, #1976d2 60%, #1a237e 100%);">
+                            <h5 class="card-title mb-0 fw-semibold">{{ application.name }}</h5>
+                        </div>
+                        <div class="card-body">
+                            {% if application.email %}
+                            <p class="mb-2"><span class="fw-bold text-primary">Email:</span> {{ application.email }}</p>
+                            {% endif %}
+                            {% if application.contact_number %}
+                            <p class="mb-2"><span class="fw-bold text-primary">Contact Number:</span> {{ application.contact_number }}</p>
+                            {% endif %}
+                            {% if application.gender %}
+                            <p class="mb-2"><span class="fw-bold text-primary">Gender:</span> {{ application.gender }}</p>
+                            {% endif %}
+                            {% if application.dob %}
+                            <p class="mb-2"><span class="fw-bold text-primary">Date of Birth:</span> {{ application.dob }}</p>
+                            {% endif %}
+                            {% if application.resume %}
+                            <a href="{{ application.resume.url }}" class="btn btn-outline-primary btn-sm mt-2" target="_blank">View Resume</a>
+                            {% endif %}
+                            
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="col-12">
+                    <div class="alert alert-info text-center">No applications found for this job.</div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if job_applications.has_other_pages %}
+<div class="pagination-container text-center my-4">
+    <nav aria-label="Job Application pagination">
+        <ul class="pagination justify-content-center">
+
+            {% if job_applications.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if query %}query={{ query }}&{% endif %}page=1">First</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?{% if query %}query={{ query }}&{% endif %}page={{ job_applications.previous_page_number }}">Previous</a>
+                </li>
+            {% endif %}
+
+            {% for num in job_applications.paginator.page_range %}
+                {% if job_applications.number == num %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                {% elif num > job_applications.number|add:'-3' and num < job_applications.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if query %}query={{ query }}&{% endif %}page={{ num }}">{{ num }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+
+            {% if job_applications.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if query %}query={{ query }}&{% endif %}page={{ job_applications.next_page_number }}">Next</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?{% if query %}query={{ query }}&{% endif %}page={{ job_applications.paginator.num_pages }}">Last</a>
+                </li>
+            {% endif %}
+
+        </ul>
+    </nav>
+
+    <div class="pagination-info mt-3">
+        Page {{ job_applications.number }} of {{ job_applications.paginator.num_pages }}
+        (Total: {{ job_applications.paginator.count }} Job Applications)
+    </div>
+</div>
+{% endif %}
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+<style>
+
+.pagination .page-link {
+    color: #3c8ce1ff;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    margin: 0 3px;
+    transition: all 0.3s ease;
+}
+
+.pagination .page-link:hover {
+    background-color: #3c8ce1ff;
+    color: #fff;
+}
+
+.pagination .active .page-link {
+    background-color: #3c8ce1ff;
+    border-color: #3c8ce1ff;
+    color: #fff;
+    font-weight: bold;
+}
+
+.pagination-info {
+    font-size: 16px;
+    font-weight: 500;
+    color: #333333;
+}
+
+
+.card {
+    border-radius: 16px;
+    transition: box-shadow 0.2s, transform 0.2s;
+}
+.card:hover {
+    box-shadow: 0 8px 32px rgba(26, 35, 126, 0.18);
+    transform: translateY(-6px) scale(1.03);
+}
+.card-header.bg-gradient {
+    border-radius: 16px 16px 0 0;
+    padding: 18px 22px;
+}
+.card-title {
+    font-size: 1.2rem;
+    letter-spacing: 0.5px;
+}
+
+ .card-body {
+    padding: 20px 22px;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.card-body p {
+    text-align: left;
+    margin: 0 0 12px 0;
+    font-size: 1.0rem;
+    color: #333;
+    font-weight: 400;
+    letter-spacing: 0.2px;
+}
+.main-container {
+    max-width: 100vw;
+    width: 97%;
+    min-height: 85vh;
+    padding: 32px 0 0 0;
+    margin: 60px auto 0;
+    overflow-y: auto;
+    border-radius: 24px;
+    box-shadow: 0 8px 32px rgba(26, 35, 126, 0.10);
+    backdrop-filter: blur(2px);
+    position: relative;
+}
+#application-count {
+    background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%);
+    border-radius: 14px;
+    box-shadow: 0 8px 32px rgba(26, 35, 126, 0.10);
+    padding: 10px;
+    padding-left: 25px;
+    padding-right: 25px;
+}
+
+</style>
+
+{% endblock content %}

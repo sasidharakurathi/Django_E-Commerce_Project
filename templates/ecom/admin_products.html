@@ -37,6 +37,35 @@
 .my-float{
 	margin-top:22px;
 }
+
+    .pagination .page-link {
+    color: #3c8ce1ff;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    margin: 0 3px;
+    transition: all 0.3s ease;
+}
+
+.pagination .page-link:hover {
+    background-color: #3c8ce1ff;
+    color: #fff;
+}
+
+.pagination .active .page-link {
+    background-color: #3c8ce1ff;
+    border-color: #3c8ce1ff;
+    color: #fff;
+    font-weight: bold;
+}
+
+.pagination-info {
+    font-size: 16px;
+    font-weight: 500;
+    color: #333333;
+} 
+.container {
+    min-height: 80%;
+  }
   </style>
 </head>
 
@@ -62,8 +91,8 @@
       <tr>
         <td> {{p.name}}</td>
         <td>
-          {% if p.product_image %}
-          <img src="{{ p.product_image.url }}" alt="Product Image" height="40px" width="40px" />
+          {% if p.get_image_url %}
+          <img src="{{ p.get_image_url }}" alt="Product Image" height="40px" width="40px" />
           {% else %}
           <img src="{% static 'images/default-product.png' %}" alt="Product Image" height="40px" width="40px" />
           {% endif %}
@@ -86,4 +115,49 @@
 <a href="/admin-add-product" class="float">
 <i class="fa fa-plus my-float"></i>
 </a>
+
+{% if products.has_other_pages %}
+<div class="pagination-container text-center my-4">
+    <nav aria-label="Job Application pagination">
+        <ul class="pagination justify-content-center">
+
+            {% if products.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if query %}query={{ query }}&{% endif %}page=1">First</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?{% if query %}query={{ query }}&{% endif %}page={{ products.previous_page_number }}">Previous</a>
+                </li>
+            {% endif %}
+
+            {% for num in products.paginator.page_range %}
+                {% if products.number == num %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                {% elif num > products.number|add:'-3' and num < products.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link" href="?{% if query %}query={{ query }}&{% endif %}page={{ num }}">{{ num }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+
+            {% if products.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?{% if query %}query={{ query }}&{% endif %}page={{ products.next_page_number }}">Next</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?{% if query %}query={{ query }}&{% endif %}page={{ products.paginator.num_pages }}">Last</a>
+                </li>
+            {% endif %}
+
+        </ul>
+    </nav>
+
+    <div class="pagination-info mt-3">
+        Page {{ products.number }} of {{ products.paginator.num_pages }}
+        (Total: {{ products.paginator.count }} Products)
+    </div>
+</div>
+{% endif %}
 {% endblock content %}

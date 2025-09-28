@@ -1,0 +1,150 @@
+{% extends "resumeparser/jobformbase.html" %}
+{% load widget_tweaks %}
+
+
+{% block styles %}
+    <style>
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f4f6f9;
+            }
+
+        .box {
+            max-width: 500px;
+            width: 90%;
+            padding: 40px;
+            margin: 100px auto;
+            margin-bottom: 5vh;
+            margin-top: 5vh;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 16px 48px rgba(26, 35, 126, 0.1);
+            }
+
+        .box .input-div label {
+            color: #1a237e;
+            text-transform: uppercase;
+            margin-bottom: 20px;
+            }
+        .box input, 
+        .box select,
+        .box input::placeholder,
+        .box select::placeholder {
+            color: #1a237e;
+            
+            }
+        .box h2{
+            text-align: center;
+            color: #1a237e;
+            text-transform: uppercase;
+            margin-bottom: 20px;
+            }
+
+        .input-div {
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 20px;
+            }
+
+        .input-div label {
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #333;
+            text-align: left;
+            }
+
+        .input-div input,
+        .input-div select {
+            padding: 12px 16px;
+            border: 2px solid #00acc1;
+            border-radius: 12px;
+            background: #fff;
+            width: 100%;
+            font-size: 15px;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+            height: 6vh;
+            }
+
+        .input-div input:focus,
+        .input-div select:focus {
+            border-color: #1a237e;
+            box-shadow: 0 0 0 3px rgba(26, 35, 126, 0.1);
+            outline: none;
+            height: 6vh;
+            }
+
+        .box input[type="submit"] {
+            display: inline-block;
+            background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%);
+            color: #fff;
+            border: none;
+            padding: 14px 0;
+            width: 100%;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            }
+
+        .box input[type="submit"]:hover {
+            background: linear-gradient(135deg, #3949ab 0%, #5c6bc0 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(26, 35, 126, 0.4);
+            }
+            
+    </style>
+{% endblock styles %}
+
+{%block content%}
+        {% comment %} fields = ["name" , "email" , "contact_number" , "gender" , "dob" ,"job_code", "resume"] {% endcomment %}
+        
+        <form class="box" method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <h2>Job Application Form</h2>
+            <div class="input-div">
+                {{ applyjobform.name.label_tag }}
+                {% render_field applyjobform.name class="form-control" placeholder="Name" %}
+                
+            </div>
+            <div class="input-div">
+                {{ applyjobform.email.label_tag }}
+                {% render_field applyjobform.email class="form-control" placeholder="Email" %}
+                
+            </div>
+            <div class="input-div">
+                {{ applyjobform.contact_number.label_tag }}
+                {% render_field applyjobform.contact_number class="form-control" placeholder="Contact Number" %}
+                
+            </div>
+            <div class="input-div">
+                {{ applyjobform.gender.label_tag }}
+                {% render_field applyjobform.gender class="form-control" placeholder="Gender" %}
+                
+            </div>
+            
+            <div class="input-div">
+                {{ applyjobform.dob.label_tag }}
+                {% render_field applyjobform.dob class="form-control" placeholder="Date of Birth" type="date" %}
+            </div>
+            
+            <div class="input-div">
+                <label for="id_job_code">Job code:</label>
+                <select name="jobcode" placeholder="Job Code" id="idjobcode" disabled>
+                    <option value="{{ jobcode }}" selected="">{{ job_details.job_title }}</option>
+                </select>
+            </div>
+            <div class="input-div">
+                {{ applyjobform.resume.label_tag }}
+                {% render_field applyjobform.resume class="form-control" placeholder="Resume" %}
+            
+            </div>
+            
+            <input type="submit" value="Submit">
+
+        </form>
+        
+    {%endblock content%}

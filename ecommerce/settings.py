@@ -11,47 +11,52 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 """
 
 import os
+from pathlib import Path
 from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATE_DIR = os.path.join(BASE_DIR,'templates')
 STATIC_DIR=os.path.join(BASE_DIR,'static')
 
+# Load environment variables from .env in the project root
+load_dotenv(os.path.join(BASE_DIR, '.env'))
+
+# Host configuration
+LOCALHOST_IP = os.getenv('LOCALHOST_IP', '127.0.0.1')
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY', '#vw(03o=(9kbvg!&2d5i!2$_58x@_-3l4wujpow6(ym37jxnza')
+SECRET_KEY = os.getenv('SECRET_KEY', 'changeme-in-production')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
+DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1')
 
-# ALLOWED_HOSTS = []
-ALLOWED_HOSTS = [
-    'localhost',
-    '127.0.0.1',
-    '2c8f-2409-40f0-3010-be04-35f0-b288-d31c-8563.ngrok-free.app',
-]
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+
+CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',') if os.getenv('CSRF_TRUSTED_ORIGINS') else []
 
 
 
 # Application definition
 
 INSTALLED_APPS = [
+    # 'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'ecom',
+    'rest_framework',
+    'ecom.apps.EcomConfig',  # Use the full AppConfig path for proper initialization
     'widget_tweaks',
-    'paypal.standard.ipn',
+    # 'paypal.standard.ipn',
+    'django_flatpickr',
+    # 'channels',
 
 ]
 
@@ -79,6 +84,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'ecom.views.job_navigation_context',
             ],
         },
     },
@@ -90,25 +96,26 @@ WSGI_APPLICATION = 'ecommerce.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
-#     }
-# }
-
-# Database Configuration
-# Use SQLite for development, MySQL/PostgreSQL for production
-DATABASES = {
-    'default': {
-        'ENGINE': os.environ.get('DB_ENGINE', 'django.db.backends.sqlite3'),
-        'NAME': os.environ.get('DB_NAME', os.path.join(BASE_DIR, 'db.sqlite3')),
-        'USER': os.environ.get('DB_USER', ''),
-        'PASSWORD': os.environ.get('DB_PASSWORD', ''),
-        'HOST': os.environ.get('DB_HOST', ''),
-        'PORT': os.environ.get('DB_PORT', ''),
+# Default: SQLite, override with env vars for MySQL/Postgres
+# print('DB_ENGINE',os.getenv('DB_ENGINE'))
+if os.getenv('DB_ENGINE'):
+    DATABASES = {
+        "default": {
+            "ENGINE": os.getenv('DB_ENGINE'),
+            "NAME": os.getenv('DB_NAME'),
+            "USER": os.getenv('DB_USER'),
+            "PASSWORD": os.getenv('DB_PASSWORD'),
+            "HOST": os.getenv('DB_HOST', LOCALHOST_IP),
+            "PORT": os.getenv('DB_PORT', ''),
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        }
+    }
 
 
 # Password validation
@@ -159,20 +166,152 @@ MEDIA_ROOT=os.path.join(BASE_DIR,'static')
 
 LOGIN_REDIRECT_URL='/afterlogin'
 
-# Email Configuration
-# For contact us functionality - configure with your email settings
+#for contact us give your gmail id and password
+
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_USE_TLS = True
-EMAIL_PORT = 587
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'your-email@gmail.com')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'your-app-password')
-# Email address to receive contact form messages
-EMAIL_RECEIVING_USER = [os.environ.get('EMAIL_RECEIVING_USER', 'your-email@gmail.com')]
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() in ('true', '1')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+EMAIL_APP_PASSWORD = os.getenv('EMAIL_APP_PASSWORD', '')
+EMAIL_RECEIVING_USER = [os.getenv('EMAIL_RECEIVING_USER', '')]
 
-# PayPal Configuration
-PAYPAL_RECEIVER_EMAIL = os.environ.get('PAYPAL_RECEIVER_EMAIL', 'your-paypal@business.com')
+STRIPE_API = os.getenv('STRIPE_SECRET_KEY', '')
+STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY', '')
 
-PAYPAL_TEST = True
+# PAYPAL_RECEIVER_EMAIL = os.getenv('PAYPAL_RECEIVER_EMAIL', '')
+# PAYPAL_TEST = os.getenv('PAYPAL_TEST', 'True').lower() in ('true', '1')
 
-HOST = 'http://127.0.0.1:8000/'
+HOST = os.getenv('HOST', f'http://{LOCALHOST_IP}:8000/')
+
+
+#   Resume Parse Config
+
+from pathlib import Path
+
+# Project paths
+PROJECT_ROOT = Path(STATIC_DIR)
+RESUME_PARSER_DIR = PROJECT_ROOT / "ResumeParser"
+RESUMES_DIR = PROJECT_ROOT / "ResumeParser" / "resumes"
+OUTPUT_DIR = PROJECT_ROOT / "ResumeParser" / "output"
+
+OUTPUT_FILENAME = "resume_analysis_web"
+JSON_BOILERPLATE = '''
+        {
+            "meta": {
+
+            },
+            "summary_statistics": {
+                
+            },
+            "candidates": [
+                
+            ],
+            "top_candidates": [
+                
+            ],
+            "boiler_plate": 1
+        }
+    '''
+
+# Ollama configuration
+# Previous models:
+# OLLAMA_MODEL = "llama3.2:3b"  # Basic (Less accurate)
+# OLLAMA_MODEL = "mistral:7b-instruct-q4_K_M"
+# OLLAMA_MODEL = "qwen2.5:7b-instruct-q4_K_M"
+OLLAMA_MODEL = "llama3.1:8b-instruct-q4_K_M"
+
+OLLAMA_API_URL = os.getenv('OLLAMA_API_URL', "http://localhost:11434/api/generate")
+OLLAMA_TIMEOUT = 180 
+
+OLLAMA_OPTIONS = {
+    'temperature': 0.1,  # Low temperature for consistent scoring
+    'top_p': 0.9,
+    'num_predict': 8000,  # Response quality (Higher value = Higher Time taken)
+    'num_ctx': 4096,  # Context
+    'repeat_penalty': 1.1,  # Prevent repetitive responses
+    'num_gpu': -1,  # Use all available GPU layers
+    'num_thread': 6, # Set based on the cpu cores available (leave 2 cores for OS)
+    'use_mmap': True,  # Memory mapping for efficiency
+    'use_mlock': True,  # Lock model in memory
+    'numa': False,  # Disable NUMA for single GPU setup
+    'num_batch': 512,  # Batch size for GPU processing
+    'rope_freq_base': 10000,  # RoPE frequency base for efficiency
+}
+
+# GPU Environment Variables (set these in your system or startup script)
+import os
+os.environ.setdefault('CUDA_VISIBLE_DEVICES', '0')  # Use first GPU
+os.environ.setdefault('OLLAMA_NUM_PARALLEL', '1')  # Single model instance for stability
+os.environ.setdefault('OLLAMA_MAX_LOADED_MODELS', '1')  # Keep only one model loaded
+os.environ.setdefault('OLLAMA_FLASH_ATTENTION', '1')  # Enable flash attention for RTX 4050
+
+
+# Scoring configuration
+MAX_SCORE = 100
+MIN_SCORE = 0
+PASSING_SCORE = 60
+
+# Supported file formats
+SUPPORTED_FORMATS = ['.pdf', '.docx', '.doc', '.txt']
+
+# Resume parsing settings
+MAX_FILE_SIZE_MB = 10
+CHUNK_SIZE = 50000  # characters for LLM processing - increased for Llama 3.2 3B
+
+# Output settings
+OUTPUT_FORMATS = ['csv', 'json', 'xlsx']
+DEFAULT_OUTPUT_FORMAT = 'csv'
+    
+
+# Scoring criteria weights (should sum to 1.0)
+# Skills matching is now the dominant factor for real-time recruitment
+SCORING_WEIGHTS = {
+    'skills_match': 0.50,           # 50% - Technical skills alignment (CRITICAL)
+    'experience_relevance': 0.20,   # 20% - Work experience relevance
+    'education': 0.10,              # 10% - Educational background (higher education = higher score)
+    'keywords_match': 0.15,         # 15% - Job-specific keywords
+    'overall_fit': 0.05             # 5% - General suitability
+}
+
+# Critical skills matching thresholds for real-time recruitment
+CRITICAL_SKILLS_THRESHOLD = 30     # Minimum skills match score to be considered
+MINIMUM_SKILLS_PERCENTAGE = 40     # Minimum % of required skills that must be present
+SKILLS_VETO_THRESHOLD = 30         # Below this skills score = automatic REJECT
+EXPERIENCE_COMPENSATION_LIMIT = 25  # Max points experience can add if skills are low
+
+# Default primary key field type
+# https://docs.djangoproject.com/en/3.0/ref/settings/#default-auto-field
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# #   --- Websocket Implementation ---
+# ASGI_APPLICATION = 'ecommerce.asgi.application'
+
+# # Channel layers configuration (For Deployment)
+# # CHANNEL_LAYERS = {
+# #     'default': {
+# #         'BACKEND': 'channels_redis.core.RedisChannelLayer',
+# #         'CONFIG': {
+# #             "hosts": [(LOCALHOST_IP, 6379)],
+# #         },
+# #     },
+# # }
+
+# # Channel layers configuration (For Development)
+# CHANNEL_LAYERS = {
+#     "default": {
+#         "BACKEND": "channels.layers.InMemoryChannelLayer"
+#     }
+# }
+
+# # Resume analysis settings
+RESUME_BATCH_SIZE = 2  # Process 2 resumes at a time
+# RESUME_ANALYSIS_TIMEOUT = 120  # 5 minutes timeout per batch
+
+# PhonePe and Google Pay (optional)
+PHONEPE_MERCHANT_ID = os.getenv('PHONEPE_MERCHANT_ID', '')
+PHONEPE_SALT_KEY = os.getenv('PHONEPE_SALT_KEY', '')
+GOOGLE_PAY_MERCHANT_ID = os.getenv('GOOGLE_PAY_MERCHANT_ID', '')
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", '')

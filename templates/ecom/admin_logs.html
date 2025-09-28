@@ -1,0 +1,217 @@
+{% extends 'ecom/admin_base.html' %}
+{% load static %}
+{% block content %}
+<style>
+    .dashboard-container {
+        min-height: 80vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 40px 20px;
+        background: #f5f7fa; /* subtle background */
+    }
+
+    .logs {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 24px;
+        max-width: 1100px;
+        width: 100%;
+    }
+
+    /* Log cards */
+    .logs-block {
+        height: 180px;
+        padding: 1.5em;
+        border-radius: 16px;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+        transition: all 0.3s ease;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        color: #fff;
+        position: relative;
+        overflow: hidden;
+    }
+
+    /* Subtle hover animation */
+    .logs-block:hover {
+        transform: translateY(-6px) scale(1.02);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.18);
+    }
+
+    /* Headings */
+    .logs-block h3 {
+        font-size: 2.2em;
+        font-weight: 700;
+        margin: 0;
+    }
+
+    .logs-block h4 {
+        font-size: 1.1em;
+        margin-top: 8px;
+        opacity: 0.9;
+        font-weight: 500;
+    }
+
+    /* Top-right icon */
+    .logs-icon {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+    }
+
+    .logs-icon i {
+        font-size: 1.6em;
+        background: rgba(255, 255, 255, 0.25);
+        color: #fff;
+        width: 42px;
+        height: 42px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+    }
+
+    /* Color themes */
+    .logs-green { background: linear-gradient(135deg, #43a047, #66bb6a); }
+    .logs-blue { background: linear-gradient(135deg, #1e88e5, #42a5f5); }
+    .logs-orange { background: linear-gradient(135deg, #ef6c00, #ff9800); }
+    .logs-purple { background: linear-gradient(135deg, #8e24aa, #ab47bc); }
+    .logs-teal { background: linear-gradient(135deg, #00897b, #26a69a); }
+
+    /* Headings */
+    .logs-block h3 {
+        font-size: 2.4em;
+        font-weight: 800;
+        margin: 0;
+        text-shadow: 1px 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .logs-block h4 {
+        font-size: 1em;
+        margin-top: 10px;
+        opacity: 0.95;
+        font-weight: 500;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+    }
+
+    /* Responsive tweaks */
+    @media (max-width: 768px) {
+        .logs {
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        }
+        .logs-block {
+            height: 160px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .logs {
+            grid-template-columns: 1fr;
+        }
+        .logs-block {
+            height: 150px;
+        }
+    }
+
+    /* Subtle entry animation */
+    .logs-block {
+        animation: fadeInUp 0.6s ease forwards;
+        opacity: 0;
+    }
+
+    @keyframes fadeInUp {
+        from {
+            transform: translateY(20px);
+            opacity: 0;
+        }
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+
+
+</style>
+
+<script>
+    $(document).ready(() => {
+        $("#payment-logs").click(() => {
+            window.location.href = "/admin-payment-logs";
+        });
+
+        $("#stripe-logs").click(() => {
+            window.location.href = "/admin-stripe-logs";
+        });
+
+        $("#phonepe-logs").click(() => {
+            window.location.href = "/admin-phonepe-logs";
+        });
+
+        $("#gpay-logs").click(() => {
+            window.location.href = "/admin-gpay-logs";
+        });
+
+        $("#payment-error-logs").click(() => {
+            window.location.href = "/admin-payment-error-logs";
+        });
+    });
+</script>
+
+<div class="dashboard-container">
+    <div class="logs">
+        <div class="logs-block logs-green" id="payment-logs">
+            <div>
+                <h3>{{ payment_logs_count }}</h3>
+                <h4>Payment Logs</h4>
+            </div>
+            <div class="logs-icon">
+                <i class="fa fa-file-text"></i>
+            </div>
+        </div>
+
+        <div class="logs-block logs-blue" id="stripe-logs">
+            <div>
+                <h3>{{ stripe_logs_count }}</h3>
+                <h4>Stripe Logs</h4>
+            </div>
+            <div class="logs-icon">
+                <i class="fa fa-file-text"></i>
+            </div>
+        </div>
+
+        <div class="logs-block logs-orange" id="phonepe-logs">
+            <div>
+                <h3>{{ phonepe_logs_count }}</h3>
+                <h4>PhonePe Logs</h4>
+            </div>
+            <div class="logs-icon">
+                <i class="fa fa-file-text"></i>
+            </div>
+        </div>
+
+        <div class="logs-block logs-purple" id="gpay-logs">
+            <div>
+                <h3>{{ gpay_logs_count }}</h3>
+                <h4>Gpay Logs</h4>
+            </div>
+            <div class="logs-icon">
+                <i class="fa fa-file-text"></i>
+            </div>
+        </div>
+
+        <div class="logs-block logs-teal" id="payment-error-logs">
+            <div>
+                <h3>{{ payment_error_logs_count }}</h3>
+                <h4>Payment Error</h4>
+                <h4>Logs</h4>
+            </div>
+            <div class="logs-icon">
+                <i class="fa fa-file-text"></i>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}

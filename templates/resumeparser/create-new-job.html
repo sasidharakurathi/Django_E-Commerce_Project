@@ -1,0 +1,205 @@
+{% extends 'ecom/admin_base.html' %}
+{% load static %}
+{% load widget_tweaks %}
+
+{% block scripts %}
+    <!-- Place the first <script> tag in your HTML's <head> -->
+    <script src="https://cdn.tiny.cloud/1/a37vptz5ohut9batq5atk54h4gqmo13puh04slot4ks1dt3n/tinymce/8/tinymce.min.js" referrerpolicy="origin" crossorigin="anonymous"></script>
+
+    <!-- Place the following <script> and <textarea> tags your HTML's <body> -->
+    <script>
+    tinymce.init({
+        selector: 'textarea#job-description',
+        plugins: [
+        // Core editing features
+        'anchor', 'autolink', 'charmap', 'codesample', 'emoticons', 'image', 'link', 'lists', 'media', 'searchreplace', 'table', 'visualblocks', 'wordcount',
+        // Your account includes a free trial of TinyMCE premium features
+        // Try the most popular premium features until Aug 6, 2025:
+        // 'checklist', 'mediaembed', 'casechange', 'formatpainter', 'pageembed', 'a11ychecker', 'tinymcespellchecker', 'permanentpen', 'powerpaste', 'advtable', 'advcode', 'editimage', 'advtemplate', 'ai', 'mentions', 'tinycomments', 'tableofcontents', 'footnotes', 'mergetags', 'autocorrect', 'typography', 'inlinecss', 'markdown','importword', 'exportword', 'exportpdf'
+        ],
+        toolbar: 'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | link image media table mergetags | addcomment showcomments | spellcheckdialog a11ycheck typography | align lineheight | checklist numlist bullist indent outdent | emoticons charmap | removeformat',
+        tinycomments_mode: 'embedded',
+        tinycomments_author: 'Author name',
+        mergetags_list: [
+        { value: 'First.Name', title: 'First Name' },
+        { value: 'Email', title: 'Email' },
+        ],
+        ai_request: (request, respondWith) => respondWith.string(() => Promise.reject('See docs to implement AI Assistant')),
+        setup: function (editor) {
+            // Sync content before form submission
+            editor.on('change', function () {
+                editor.save();
+            });
+        }
+    });
+
+    // Handle form submission to ensure TinyMCE content is synced
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.querySelector('form.box');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                // Trigger TinyMCE to save content to textarea
+                tinymce.triggerSave();
+
+                // Check if job description is empty
+                const jobDescTextarea = document.getElementById('job-description');
+                if (jobDescTextarea && !jobDescTextarea.value.trim()) {
+                    e.preventDefault();
+                    alert('Job Description is required.');
+                    // Focus on TinyMCE editor instead of hidden textarea
+                    const editor = tinymce.get('job-description');
+                    if (editor) {
+                        editor.focus();
+                    }
+                    return false;
+                }
+            });
+        }
+    });
+    </script>
+{% endblock scripts %}
+
+
+{% block content %}
+
+    <form class="box" method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <h1>Job Information</h1>
+        <div class="form-ele">
+            {{ createjobform.job_code.label_tag }}
+            {% render_field createjobform.job_code class="form-control" placeholder="Ex: PY01" %}
+        </div>
+        
+        <div class="form-ele">
+            {{ createjobform.job_title.label_tag }}
+            {% render_field createjobform.job_title class="form-control" placeholder="Ex: Python Developer" %}
+        </div>
+        {{ createjobform.job_description.label_tag }}
+        <div class="form-ele">
+            
+            {% render_field createjobform.job_description class="form-control" placeholder="Job Description" id="job-description" %}
+        </div>
+
+        <input type="submit" value="Create">
+    </form>
+
+
+<style>
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #f5f5f5 0%, #e8eaf6 100%);
+    min-height: 100vh;
+}
+
+label {
+    font-weight: bold;
+}
+
+#job-description {
+    height: 80vh;
+}
+
+.form-ele {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    align-content: space-around;
+}
+
+.form-ele > label {
+    width: 20%;
+}
+.form-ele > input {
+    width: 100%;
+}
+
+.box {
+    max-width: 80vw;
+    width: 90%;
+    padding: 40px;
+    margin: 120px auto 40px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    text-align: left;
+    border-radius: 16px;
+    box-shadow: 0 16px 48px rgba(26, 35, 126, 0.2);
+}
+
+.box h1 {
+    color: #1a237e;
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 30px;
+    text-align: center;
+    font-size: 28px;
+}
+
+.form-control {
+    border: 2px solid #e0e0e0;
+    background: rgba(255, 255, 255, 0.9);
+    display: block;
+    margin: 20px 0;
+    padding: 15px 20px;
+    width: 100%;
+    outline: none;
+    color: #212121;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    font-size: 16px;
+    box-sizing: border-box;
+}
+
+.form-control:focus {
+    border-color: #1a237e;
+    box-shadow: 0 0 0 3px rgba(26, 35, 126, 0.1);
+    background: rgba(255, 255, 255, 1);
+}
+
+.form-control::placeholder {
+    color: #999;
+    font-style: italic;
+}
+
+.box input[type="submit"] {
+    border: 0;
+    background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%);
+    display: block;
+    margin: 30px auto 0;
+    text-align: center;
+    padding: 16px 50px;
+    outline: none;
+    color: white;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 18px;
+    box-shadow: 0 4px 16px rgba(26, 35, 126, 0.3);
+    min-width: 200px;
+}
+
+.box input[type="submit"]:hover {
+    background: linear-gradient(135deg, #3949ab 0%, #5c6bc0 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(26, 35, 126, 0.4);
+}
+
+/* TinyMCE container styling */
+.tox-tinymce {
+    border-radius: 12px !important;
+    border: 2px solid #e0e0e0 !important;
+    margin: 20px 0 !important;
+}
+
+.tox-tinymce:focus-within {
+    border-color: #1a237e !important;
+    box-shadow: 0 0 0 3px rgba(26, 35, 126, 0.1) !important;
+}
+
+</style>
+
+
+{% endblock content %}

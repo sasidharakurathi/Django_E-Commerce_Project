@@ -1,0 +1,62 @@
+{% extends "resumeparser/jobformbase.html" %}
+
+{% block styles %}
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f4f6f9;
+        }
+
+        .error-container {
+            max-width: 500px;
+            width: 90%;
+            padding: 40px;
+            margin: 100px auto;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 16px 48px rgba(26, 35, 126, 0.1);
+            text-align: center;
+        }
+
+        .error-container h2 {
+            color: #d32f2f;
+            margin-bottom: 20px;
+        }
+
+        .error-container p {
+            color: #666;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .back-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #1a237e 0%, #3949ab 100%);
+            color: #fff;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .back-button:hover {
+            background: linear-gradient(135deg, #3949ab 0%, #5c6bc0 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(26, 35, 126, 0.4);
+            color: #fff;
+            text-decoration: none;
+        }
+    </style>
+{% endblock styles %}
+
+{% block content %}
+    <div class="error-container">
+        <h2>Job Not Found</h2>
+        <p>Sorry, the job with code "{{ job_code }}" does not exist or has been removed.</p>
+        <p>Please check the available job openings from the navigation menu.</p>
+        <a href="/" class="back-button">Go Back to Home</a>
+    </div>
+{% endblock content %}

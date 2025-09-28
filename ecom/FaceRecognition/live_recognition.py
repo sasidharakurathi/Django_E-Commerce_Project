@@ -1,11 +1,9 @@
 import cv2
 import face_recognition
 import pickle
-import os
 
-# Get the directory where this script is located
-current_dir = os.path.dirname(os.path.abspath(__file__))
-ENCODING_FILE = os.path.join(current_dir, "encodings", "known_faces.pkl")
+# ENCODING_FILE = "./encodings/known_faces.pkl"
+ENCODING_FILE = "C:\\Users\\A S\\OneDrive\\Desktop\\Online_Shopping_Project_Django_Development\\ecom\\FaceRecognition\\encodings\\known_faces.pkl"
 
 def load_known_faces():
     with open(ENCODING_FILE, "rb") as f:
@@ -13,7 +11,7 @@ def load_known_faces():
 
 def live_face_recognition(image):
     known_encodings, known_users = load_known_faces()
-
+    name = "Unknown"
     # cap = cv2.VideoCapture(0)
     print("Live face recognition started. Press 'q' to quit.")
 

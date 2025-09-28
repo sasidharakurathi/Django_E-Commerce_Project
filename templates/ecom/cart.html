@@ -64,6 +64,10 @@
   box-shadow: 0 6px 20px rgba(0, 172, 193, 0.3);
 }
 
+.container {
+  min-height: 20%;
+}
+
 </style>
 
 </head>
@@ -81,26 +85,30 @@
           <th>Image</th>
           <th>Price</th>
           <th>Description</th>
+          <th>Quantity</th>
+          <th>Subtotal</th>
           <th>Remove From Cart</th>
 
         </tr>
       </thead>
-      {% for p in products %}
+      {% for p in products_with_quantity %}
   {% if p %}
 
       <tr>
-        <td> {{p.name}}</td>
+        <td> {{p.product.name}}</td>
         <td>
-        {% if p.product_image %}
-        <img src="{{ p.product_image.url }}" alt="Product Image" height="40px" width="40px" />
+        {% if p.product.get_image_url %}
+        <img src="{{ p.product.get_image_url }}" alt="Product Image" height="40px" width="40px" />
         {% else %}
         <img src="{% static 'images/default-product.png' %}" alt="Product Image" height="40px" width="40px" />
         {% endif %}
         </td>
-        <td>{{p.price}}</td>
-        <td>{{p.description}}</td>
+        <td>{{p.product.price}}</td>
+        <td>{{p.product.description}}</td>
+        <td><a class="btn btn-danger btn-xs" href="{% url 'decrement-cart-item-view' p.product.id  %}"><span> - </span></a> {{p.quantity}} <a class="btn btn-success btn-xs" href="{% url 'increment-cart-item-view' p.product.id  %}"><span> + </span></a></td>
+        <td>{{p.subtotal}}</td>
 
-        <td><a class="btn btn-danger btn-xs" href="{% url 'remove-from-cart' p.id  %}"><span class="glyphicon glyphicon-trash"></span></a></td>
+        <td><a class="btn btn-danger btn-xs" href="{% url 'remove-from-cart' p.product.id  %}"><span class="glyphicon glyphicon-trash"></span></a></td>
 
       </tr>
       {%else%}

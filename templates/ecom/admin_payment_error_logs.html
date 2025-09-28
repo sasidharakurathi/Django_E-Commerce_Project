@@ -1,0 +1,127 @@
+{% extends 'ecom/admin_base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid my-4">
+    <br><br>
+    <h2 class="mb-4 text-center text-primary fw-bold">Payment Error Logs</h2>
+    
+    {% if payment_error_logs %}
+    <div class="table-responsive shadow-sm">
+        <table class="table table-bordered table-hover logs-table">
+            <thead class="table-primary">
+                <tr>
+                    <th>ID</th>
+                    <th>Payment type</th>
+                    <th>Error message</th>
+                    <th>User ID</th>
+                    <th>Order ID</th>
+                    <th>Amount</th>
+                    <th>Customer email</th>
+                    <th>Transaction ID</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in payment_error_logs %}
+                <tr>
+                    <td>{{ log.id }}</td>
+                    <td>{{ log.payment_type }}</td>
+                    <td>{{ log.error_message }}</td>
+                    <td>{{ log.user_id }}</td>
+                    <td>{{ log.order_id }}</td>
+                    <td>₹ {{ log.amount }}</td>
+                    <td>{{ log.customer_email }}</td>
+                    <td>{{ log.transaction_id }}</td>
+                    <td>{{ log.timestamp }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+        <div class="alert alert-info text-center">No payment error logs found.</div>
+    {% endif %}
+</div>
+
+{% if payment_error_logs.has_other_pages %}
+<div class="pagination-container text-center my-4">
+    <nav aria-label="Payment Logs pagination">
+        <ul class="pagination justify-content-center">
+
+            {% if payment_error_logs.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1">First</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ payment_error_logs.previous_page_number }}">Previous</a>
+                </li>
+            {% endif %}
+
+            {% for num in payment_error_logs.paginator.page_range %}
+                {% if payment_error_logs.number == num %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                {% elif num > payment_error_logs.number|add:'-3' and num < payment_error_logs.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+
+            {% if payment_error_logs.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ payment_error_logs.next_page_number }}">Next</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ payment_error_logs.paginator.num_pages }}">Last</a>
+                </li>
+            {% endif %}
+
+        </ul>
+    </nav>
+
+    <div class="pagination-info mt-3 text-primary fw-bold">
+        Page {{ payment_error_logs.number }} of {{ payment_error_logs.paginator.num_pages }}
+        (Total: {{ payment_error_logs.paginator.count }} Logs)
+    </div>
+</div>
+{% endif %}
+
+<style>
+.logs-table td {
+    word-break: break-word;
+    max-width: 200px;  /* adjust width */
+    white-space: normal;
+}
+
+
+/* Blue themed table */
+.logs-table {
+    border: 2px solid #0d6efd;
+}
+
+.logs-table thead {
+    background: #0d6efd !important;
+    color: white !important;
+    font-weight: bold;
+}
+
+.logs-table tbody tr:hover {
+    background-color: #e7f1ff !important;
+    transition: 0.3s ease;
+}
+
+.pagination .page-link {
+    color: #0d6efd;
+    border: 1px solid #0d6efd;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+</style>
+
+{% endblock content %}

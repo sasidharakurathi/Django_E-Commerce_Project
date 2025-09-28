@@ -1,0 +1,1819 @@
+{% extends 'ecom/admin_base.html' %} {% load static %} {% block scripts %}
+<!-- Include jQuery and Bootstrap JS -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+<link
+	rel="stylesheet"
+	href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+/>
+<link
+	href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+	rel="stylesheet"
+/>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+
+<!-- Ensure Clusterize.js loads BEFORE custom script -->
+<script src="https://cdn.jsdelivr.net/npm/clusterize.js@0.18.1/clusterize.min.js"></script>
+
+<script>
+
+	// Store candidate data for JavaScript access
+	const candidatesData = {{file_content_dump|safe}}.candidates;
+	console.log(candidatesData);
+	const attributesByCandidate = {{attributes_by_candidate|safe}};
+	const unAnalysedData = {{unanalysed_data|safe}};
+
+	var summaryStatistics = {};
+
+	calculateSummaryStatistics();
+
+
+
+	// jQuery-based filtering functionality
+	$(document).ready(function() {
+
+	    updateSummaryStatistics();
+
+	    // const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+	    // const path = "/ws/analyse-resume/{{job_code}}/";
+
+	    // websocket_url = `${protocol}://${window.location.hostname}:${window.location.port}${path}`;
+
+	    // const socket = new WebSocket(websocket_url);
+
+	    var myModal = new bootstrap.Modal(document.getElementById('myModal'));
+
+
+	    // Ensure unique keys on form submit
+	    $('#dynamic-form').on('submit', function(e) {
+	        e.preventDefault();
+	        const keyInputs = $(this).find('input[name="custom_key"]');
+	        const valueInputs = $(this).find('input[name="custom_value"]');
+	        let keyValueMap = {};
+	        let duplicateKey = false;
+	        keyInputs.each(function(idx) {
+	            const key = $(this).val().trim();
+	            const value = valueInputs.eq(idx).val().trim();
+	            if (key in keyValueMap) {
+	                duplicateKey = true;
+	            }
+	            keyValueMap[key] = value;
+	        });
+	        if (duplicateKey) {
+	            alert('Duplicate field names are not allowed. Please use unique keys.');
+	            return false;
+	        }
+	        // Add candidate name to the payload
+	        keyValueMap['candidate_filename'] = $('#candidateIdentifierByFileName').val();
+	        // AJAX POST to the specified URL
+	        $.ajax({
+	            type: 'POST',
+	            url: window.location.href,
+	            data: JSON.stringify(keyValueMap),
+	            contentType: 'application/json',
+	            success: function(response) {
+	                // Optionally show a success message
+	                alert('Details submitted successfully!');
+	                // $('#customAttributesModal').modal('hide');
+	                window.location.reload();
+	            },
+	            error: function(xhr, status, error) {
+	                alert('Error submitting details: ' + error);
+	            }
+	        });
+	        return false;
+	    });
+	    console.log('Document ready, setting up filters...');
+
+	    // --- CLUSTERIZE.JS VIRTUAL SCROLLING SETUP ---
+	    function renderCandidateRow(candidate) {
+	        // Render row HTML similar to your Django template
+	        return `
+	            <tr class="candidate-row"
+	                data-recommendation="${candidate.recommendation?.decision || ''}"
+	                data-experience="${candidate.experience_analysis?.experience_level || ''}"
+	                data-score="${candidate.scores?.final_score || 0}"
+	                data-name="${candidate.candidate_name?.toLowerCase() || ''}">
+	                <td>
+	                    <div>
+	                        <strong>${candidate.candidate_name}</strong><br>
+	                        <small class="text-muted">${candidate.filename}</small>
+	                    </div>
+	                </td>
+	                <td>
+	                    <div class="d-flex align-items-center">
+	                        <div class="progress me-2" style="width: 60px; height: 8px;">
+	                            <div class="progress-bar ${candidate.scores?.final_score >= 80 ? 'bg-lime-green' : candidate.scores?.final_score >= 60 ? 'bg-info' : candidate.scores?.final_score >= 40 ? 'bg-warning' : 'bg-danger'} text-white" style="width: ${candidate.scores?.final_score || 0}%"></div>
+	                        </div>
+	                        <span class="fw-bold">${(candidate.scores?.final_score || 0).toFixed(1)}</span>
+	                    </div>
+	                </td>
+	                <td>
+	                    <span class="badge ${candidate.skills_analysis?.skill_match_percentage >= 70 ? 'bg-lime-green' : candidate.skills_analysis?.skill_match_percentage >= 50 ? 'bg-info' : candidate.skills_analysis?.skill_match_percentage >= 30 ? 'bg-warning' : 'bg-danger'} text-white">
+	                        ${(candidate.skills_analysis?.skill_match_percentage || 0).toFixed(1)}%
+	                    </span>
+	                </td>
+	                <td>
+	                    <span class="badge ${candidate.experience_analysis?.experience_level === 'Experienced' ? 'bg-lime-green' : candidate.experience_analysis?.experience_level === 'Intermediate' ? 'bg-info' : 'bg-warning'} text-white">
+	                        ${candidate.experience_analysis?.experience_level || ''}
+	                    </span>
+	                </td>
+	                <td>
+	                    <span class="badge ${candidate.recommendation?.decision === 'HIRE' ? 'bg-lime-green' : candidate.recommendation?.decision === 'CONSIDER' ? 'bg-warning' : 'bg-danger'} text-white">
+	                        ${candidate.recommendation?.decision || ''}
+	                    </span>
+	                </td>
+	                <td>
+	                    <button class="btn btn-sm btn-outline-primary me-1" onclick="showCandidateDetails('${candidate.email}')">
+	                        <i class="bi bi-eye"></i> Details
+	                    </button>
+	                    <button class="btn btn-sm btn-outline-primary" onclick="showCustomAttributesForm('${candidate.candidate_name}' , '${candidate.filename}')" title="Add">
+	                        <i class="bi bi-plus"></i>
+	                    </button>
+	                </td>
+	            </tr>
+	        `;
+	    }
+	    console.log(candidatesData.length);
+	    if(candidatesData.length == 0) {
+	        $("#no-analysis-found").css({ display: "block" });
+	        $("#candidatesContainer").css({ display: "none" });
+
+	    } else {
+	        var candidateRows = candidatesData.map(renderCandidateRow);
+	        window.clusterize = new Clusterize({
+	            rows: candidateRows,
+	            scrollId: 'scrollArea',
+	            contentId: 'contentArea'
+	        });
+
+	        window.updateClusterizeRows = function(newRows) {
+	            clusterize.update(newRows);
+	        };
+	        // --- END CLUSTERIZE.JS SETUP ---
+	    }
+
+
+	    // Initialize filters
+	    initializeFilters();
+	    updateVisibleCount();
+	    const container = $('#dynamic-fields-container');
+	    $('#addFieldBtn').on('click', addNewDetailRow);
+	    container.on('click', '.remove-row-btn', function() {
+	        $(this).closest('.input-group').remove();
+	    });
+	    $('#analysisModal').on('shown.bs.modal', function () {
+	        if (container.children().length === 0) {
+	            addNewDetailRow();
+	        }
+	    });
+
+
+	    $('#openModalBtn').click(() => {
+	        // Check if analysis is already running
+	        if (isAnalysisRunning) {
+	            return;
+	        }
+
+	        // Check if there are any unanalyzed resumes remaining
+	        if(unAnalysedData && unAnalysedData.length > 0) {
+	            let batchSize = {{resume_batch_size | default:2}};
+	            let resumeBatches = createResumeBatches(batchSize);
+	            console.log(`Starting analysis for ${unAnalysedData.length} remaining resumes in ${resumeBatches.length} batches`);
+	            startBatchWiseAnalysis(resumeBatches);
+	        } else {
+	            showProgressPopup('All resumes have been analysed.', 'info', true);
+	        }
+	    });
+
+	    // Stop analysis button click handler
+	    $('#stopAnalysisBtn').click(() => {
+	        if (isAnalysisRunning && !shouldStopAnalysis) {
+	            stopAnalysis();
+	        }
+	    });
+	});
+
+	async function startBatchWiseAnalysis(resumeBatches) {
+	    // Start analysis mode
+	    startAnalysisMode();
+
+	    // Initialize enhanced progress popup
+	    initializeProgressPopup(resumeBatches.length, unAnalysedData.length);
+
+	    let id=1;
+	    let data = {
+	        start_analysis: true,
+	        job_code: "{{job_code}}",
+	        job_id: "{{job_id}}",
+	        total_batches: resumeBatches.length
+	    };
+
+	    for(let batch of resumeBatches) {
+	        // Check if analysis should be stopped
+	        if (shouldStopAnalysis) {
+	            console.log('Analysis stopped by user - breaking loop');
+	            break;
+	        }
+
+	        data.batch_id = id++;
+	        data.batch = batch;
+
+	        let response = await new Promise((resolve, reject) => {
+	            $.ajax({
+	                type: "POST",
+	                url: "http://{{ request.get_host }}/analyse-batch/",
+	                data: JSON.stringify(data),
+	                contentType: "application/json",
+	                success: function (result) {
+	                    resolve(result);
+	                },
+	                error: function (err) {
+	                    reject(err);
+	                }
+	            });
+	        });
+
+	        if(response.batch_analyse_success) {
+	            // Update progress popup with batch data
+	            updateProgressPopup(response);
+	            updateCandidates(response);
+	        } else {
+	            console.log(`Batch Analysis failed: ${response}`);
+	            // Update progress popup to show error
+	            $('#analysisStatus').text('Batch analysis failed');
+	            $('#analysisIcon').removeClass('bi-cpu-fill').addClass('bi-exclamation-triangle-fill text-danger');
+	        }
+	    }
+
+	    applySorting("Score");
+
+	    // Check if analysis was stopped or completed
+	    if (shouldStopAnalysis) {
+	        // Analysis was stopped
+	        $('#analysisStatus').text('Analysis Stopped');
+	        $('#analysisIcon').removeClass('bi-cpu-fill bi-info-circle-fill').addClass('bi-exclamation-triangle-fill');
+	        $('#progressPopup').removeClass('analysis-active').addClass('analysis-complete');
+	    } else {
+	        // Analysis completed normally
+	        $('#analysisStatus').text('Analysis Complete! 🎉');
+	        $('#analysisIcon').removeClass('bi-cpu-fill').addClass('bi-check-circle-fill');
+	        $('#progressBar').css('width', '100%');
+	        $('#progressPercentage').text('100%');
+	        $('#progressPopup').removeClass('analysis-active').addClass('analysis-complete');
+	    }
+
+	    // Reset button states
+	    stopAnalysisMode();
+
+	    // Keep popup open until user closes it manually
+
+	}
+
+	function createResumeBatches(batchSize) {
+	    const resumeBatches = [];
+
+	    console.log("unAnalysedData:", unAnalysedData);
+	    console.log("Length:", unAnalysedData.length);
+
+	    const unAnalysedDataIds = unAnalysedData.map(data => data.id);
+	    // console.log(unAnalysedDataIds);
+
+
+	    for (let i = 0; i < unAnalysedDataIds.length; i += batchSize) {
+	        const batch = unAnalysedDataIds.slice(i, i + batchSize);
+	        resumeBatches.push(batch);
+	        console.info(`Created batch ${resumeBatches.length} with ${batch.length} resumes`);
+	    }
+
+	    return resumeBatches;
+	}
+
+	function updateCandidates(data) {
+	    const batchNo = data.batch_no;
+	    const jobCode = data.job_code;
+	    const totalBatches = data.total_batches;
+
+	    const $tbody = $('#candidatesTable tbody');
+	    var $rows = $tbody.find(".candidate-row").get();
+	    console.log($rows);
+
+	    if (data.results.success) {
+	        const new_candidates_data = data.results.results;
+	        $(new_candidates_data).each((index , candidate) => {
+	            var row = `
+	                <tr class="candidate-row"
+	                    data-recommendation="${ candidate.recommendation.decision }"
+	                    data-experience="${ candidate.experience_analysis.experience_level }"
+	                    data-score="${ candidate.scores.final_score }"
+	                    data-name="${ candidate.candidate_name.toLowerCase() }">
+	                    <td>
+	                        <div>
+	                            <strong>${ candidate.candidate_name }</strong>
+	                            <br>
+	                            <small class="text-muted">${ candidate.filename }</small>
+	                        </div>
+	                    </td>
+	                    <td>
+	                        <div class="d-flex align-items-center">
+	                            <div class="progress me-2" style="width: 60px; height: 8px;">
+	                                <div class="progress-bar
+	                                    ${
+	                                        candidate.scores.final_score >= 80 ? "bg-lime-green" :
+	                                        candidate.scores.final_score >= 60 ? "bg-info":
+	                                        candidate.scores.final_score >= 40 ? "bg-warning":
+	                                        "bg-danger"
+	                                        }
+	                                    text-white"
+	                                    style="width: ${ candidate.scores.final_score }%"></div>
+	                            </div>
+	                            <span class="fw-bold">${ candidate.scores.final_score.toFixed(1) }</span>
+	                        </div>
+	                    </td>
+	                    <td>
+	                        <span class="badge
+	                            ${
+	                                candidate.skills_analysis.skill_match_percentage >= 70 ? "bg-lime-green" :
+	                                candidate.skills_analysis.skill_match_percentage >= 50 ? "bg-info" :
+	                                candidate.skills_analysis.skill_match_percentage >= 30 ? "bg-warning" :
+	                                "bg-danger"
+	                            } text-white">
+
+	                            ${ candidate.skills_analysis.skill_match_percentage.toFixed(1) }%
+	                        </span>
+	                    </td>
+	                    <td>
+	                        <span class="badge
+
+	                            ${
+	                                candidate.experience_analysis.experience_level == "Experienced" ? "bg-lime-green":
+	                                candidate.experience_analysis.experience_level == "Intermediate" ? "bg-info":
+	                                "bg-warning"
+	                            } text-white">
+
+	                            ${ candidate.experience_analysis.experience_level }
+	                        </span>
+	                    </td>
+	                    <td>
+
+	                        ${
+	                            candidate.recommendation.decision == "HIRE" ? `<span class="badge bg-lime-green text-white">${ candidate.recommendation.decision }</span>` :
+	                            candidate.recommendation.decision == "CONSIDER" ? `<span class="badge bg-warning text-white">${ candidate.recommendation.decision }</span>` :
+	                            `<span class="badge bg-danger text-white">${ candidate.recommendation.decision }</span>`
+	                        }
+
+	                    </td>
+	                    <td>
+	                        <button class="btn btn-sm btn-outline-primary me-1" onclick="showCandidateDetails('${ candidate.email }')">
+	                            <i class="bi bi-eye"></i> Details
+	                        </button>
+	                        <button class="btn btn-sm btn-outline-primary" onclick="showCustomAttributesForm('${ candidate.candidate_name }' , '${ candidate.filename }')" title="Add">
+	                            <i class="bi bi-plus"></i>
+	                        </button>
+	                    </td>
+	                </tr>
+	            `;
+
+	            candidatesData.push(candidate);
+	            console.log("new candidate data: ",candidatesData);
+
+	            calculateSummaryStatistics();
+	            updateSummaryStatistics();
+
+	            $tbody.append(row);
+	            // applySorting("Score");
+	            $("#candidatesContainer").css({ display: "block" });
+	            $("#no-analysis-found").css({ display: "none" });
+
+	            updateVisibleCount();
+	        });
+
+	        // Remove processed resumes from unAnalysedData for resume functionality
+	        removeProcessedResumesFromUnanalyzed(data);
+	    }
+	}
+
+	// Simple Progress Popup Functions
+	let processedResumes = 0;
+	let isAnalysisRunning = false;
+	let shouldStopAnalysis = false;
+
+	function showProgressPopup(message, type = 'info', isSimpleMessage = false) {
+	    const popup = $('#progressPopup');
+
+	    if (isSimpleMessage) {
+	        // Show only message (for already analyzed case)
+	        $('#messageOnly').show();
+	        $('#progressContent').hide();
+	        $('#simpleMessage').text(message);
+	        $('#analysisStatus').text('Information');
+	        $('#analysisIcon').removeClass('bi-cpu-fill').addClass('bi-info-circle-fill');
+	    } else {
+	        // Show progress content (for active analysis)
+	        $('#messageOnly').hide();
+	        $('#progressContent').show();
+	        $('#analysisStatus').text(message);
+	        $('#analysisIcon').removeClass('bi-info-circle-fill bi-check-circle-fill').addClass('bi-info-circle-fill');
+	    }
+
+	    // Show popup with animation
+	    popup.removeClass('popup-hide analysis-complete').addClass('popup-show');
+	}
+
+	function hideProgressPopup() {
+	    const popup = $('#progressPopup');
+	    popup.removeClass('popup-show analysis-active analysis-complete').addClass('popup-hide');
+
+	    // Reset values
+	    processedResumes = 0;
+	}
+
+	function updateProgressPopup(batchData) {
+	    const currentBatch = batchData.batch_no || 0;
+	    const totalBatches = batchData.total_batches || 0;
+	    const progressPercent = totalBatches > 0 ? Math.round((currentBatch / totalBatches) * 100) : 0;
+
+	    // Update progress bar
+	    $('#progressBar').css('width', progressPercent + '%');
+	    $('#progressPercentage').text(progressPercent + '%');
+
+	    // Update batch information
+	    $('#currentBatch').text(currentBatch);
+	    $('#totalBatches').text(totalBatches);
+
+	    // Update resumes processed
+	    const estimatedResumesInBatch = batchData.results ? batchData.results.length : 2;
+	    processedResumes += estimatedResumesInBatch;
+	    // $('#resumesProcessed').text(processedResumes);
+
+	    // Update status
+	    if (currentBatch === totalBatches) {
+	        $('#analysisStatus').text('Analysis Complete! 🎉');
+	        $('#analysisIcon').removeClass('bi-cpu-fill').addClass('bi-check-circle-fill');
+	        $('#progressPopup').removeClass('analysis-active').addClass('analysis-complete');
+	        // Don't auto-hide - keep popup open until user closes it
+	    } else {
+	        $('#analysisStatus').text(`Processing batch ${currentBatch}/${totalBatches}...`);
+	    }
+	}
+
+	function initializeProgressPopup(totalBatches, totalResumes = 0) {
+	    processedResumes = 0;
+
+	    // Show progress content
+	    $('#messageOnly').hide();
+	    $('#progressContent').show();
+
+	    // Reset popup state
+	    $('#progressBar').css('width', '0%');
+	    $('#progressPercentage').text('0%');
+	    $('#currentBatch').text('0');
+	    $('#totalBatches').text(totalBatches);
+	    // $('#resumesProcessed').text('0');
+	    $('#analysisStatus').text('Starting analysis...');
+	    $('#analysisIcon').removeClass('bi-check-circle-fill bi-info-circle-fill').addClass('bi-cpu-fill');
+
+	    // Show popup
+	    showProgressPopup('Starting analysis...', 'info');
+	}
+
+	// Button control functions
+	function startAnalysisMode() {
+	    isAnalysisRunning = true;
+	    shouldStopAnalysis = false;
+	    $('#openModalBtn').prop('disabled', true).text('Analysis Running...');
+	    $('#stopAnalysisBtn').show().prop('disabled', false).html('<i class="bi bi-stop-circle-fill me-1"></i>Stop Analysis');
+	}
+
+	function stopAnalysisMode() {
+	    isAnalysisRunning = false;
+	    shouldStopAnalysis = false;
+	    $('#openModalBtn').prop('disabled', false).text('New Analysis');
+	    $('#stopAnalysisBtn').hide();
+	}
+
+	function stopAnalysis() {
+	    shouldStopAnalysis = true;
+
+	    $('#stopAnalysisBtn').prop('disabled', true).html('<i class="bi bi-x-circle-fill me-1"></i>Stopping...');
+	    $('#analysisStatus').text('Stopping after current batch...');
+	    $('#analysisIcon').removeClass('bi-cpu-fill bi-info-circle-fill').addClass('bi-exclamation-triangle-fill');
+
+	    console.log('Analysis will stop after current batch completes');
+	}
+
+	function removeProcessedResumesFromUnanalyzed(batchData) {
+	    /**
+	     * Remove processed resumes from unAnalysedData to enable resume functionality
+	     * This allows "New Analysis" to only process remaining unanalyzed resumes
+	     */
+	    if (!batchData.results || !batchData.results.success || !batchData.results.results) {
+	        console.log('No valid results to process for removal');
+	        return;
+	    }
+
+	    const processedFilenames = batchData.results.results.map(result => result.filename);
+	    console.log('Processed filenames in this batch:', processedFilenames);
+
+	    // Remove processed resumes from unAnalysedData
+	    const originalLength = unAnalysedData.length;
+
+	    // Filter out resumes that were just processed
+	    for (let i = unAnalysedData.length - 1; i >= 0; i--) {
+	        const resume = unAnalysedData[i];
+	        // Check if this resume's filename matches any processed filename
+	        if (processedFilenames.includes(resume.resume_filename)) {
+	            console.log(`Removing processed resume: ${resume.resume_filename} (ID: ${resume.id})`);
+	            unAnalysedData.splice(i, 1);
+	        }
+	    }
+
+	    const newLength = unAnalysedData.length;
+	    console.log(`Removed ${originalLength - newLength} resumes from unAnalysedData. Remaining: ${newLength}`);
+
+	    // Update the UI to reflect remaining unanalyzed count
+	    updateUnanalyzedCount();
+	}
+
+	function updateUnanalyzedCount() {
+	    /**
+	     * Update any UI elements that show the count of unanalyzed resumes
+	     */
+	    const remainingCount = unAnalysedData.length;
+	    console.log(`Remaining unanalyzed resumes: ${remainingCount}`);
+
+	    // Update the remaining count display
+	    // $('#remainingResumes').text(remainingCount);
+
+	    // Hide the count if no resumes remaining
+	    if (remainingCount === 0) {
+	        $('#remainingCount').hide();
+	    } else {
+	        $('#remainingCount').show();
+	    }
+	}
+
+	function calculateSummaryStatistics() {
+	    var summary_statistics = {};
+
+	    let successCount = 0;
+	    let scoreSum = 0;
+
+	    var scoreDistribution = {
+	        excellent: 0,
+	        good: 0,
+	        average: 0,
+	        below_average: 0
+	    };
+
+	    var recommendations = {
+	        HIRE: 0,
+	        CONSIDER: 0,
+	        REJECT: 0
+	    };
+
+	    try {
+	        candidatesData.forEach(data => {
+	            if (data.success === true) {
+	                successCount++;
+	            }
+
+	            const finalScore = data.scores?.final_score || 0;
+	            scoreSum += finalScore;
+
+	            if (finalScore >= 90) {
+	                scoreDistribution.excellent++;
+	            } else if (finalScore >= 80) {
+	                scoreDistribution.good++;
+	            } else if (finalScore >= 60) {
+	                scoreDistribution.average++;
+	            } else {
+	                scoreDistribution.below_average++;
+	                console.log(finalScore);
+	            }
+
+	            const decision = data.recommendation?.decision;
+	            if (recommendations.hasOwnProperty(decision)) {
+	                recommendations[decision]++;
+	            }
+	        });
+
+	        summary_statistics.total_candidates = candidatesData.length;
+	        summary_statistics.successful_analyses = successCount;
+	        summary_statistics.average_score = (scoreSum / candidatesData.length).toFixed(2);
+	        summary_statistics.score_distribution = scoreDistribution;
+	        summary_statistics.recommendations = recommendations;
+
+	    } catch (e) {
+	        console.error("Unable to calculate summary statistics:", e);
+	    }
+
+	    summaryStatistics = summary_statistics;
+	}
+
+	function updateSummaryStatistics() {
+
+	    // summaryStatistics
+
+	    htmlSummaryContent = `
+	         <!-- Summary Statistics -->
+	        <div class="row mb-4">
+	            <div class="col-md-4">
+	                <div class="card border-0 shadow-sm h-100">
+	                    <div class="card-body text-center">
+	                        <div class="display-4 text-primary mb-2">${ summaryStatistics.total_candidates }</div>
+	                        <h6 class="text-muted mb-0">Total Candidates</h6>
+	                    </div>
+	                </div>
+	            </div>
+	            <div class="col-md-4">
+	                <div class="card border-0 shadow-sm h-100">
+	                    <div class="card-body text-center">
+	                        <div class="display-4 text-success mb-2">${ summaryStatistics.successful_analyses }</div>
+	                        <h6 class="text-muted mb-0">Successful Analyses</h6>
+	                    </div>
+	                </div>
+	            </div>
+	            <div class="col-md-4">
+	                <div class="card border-0 shadow-sm h-100">
+	                    <div class="card-body text-center">
+	                        <div class="display-4 text-warning mb-2">${ summaryStatistics.average_score }</div>
+	                        <h6 class="text-muted mb-0">Average Score</h6>
+	                    </div>
+	                </div>
+	            </div>
+
+	        </div>
+
+	        <!-- Score Distribution and Recommendations -->
+	        <div class="row mb-4">
+	            <div class="col-md-6">
+	                <div class="card border-0 shadow-sm h-100">
+	                    <div class="card-header bg-light border-0">
+	                        <h5 class="mb-0 fw-bold">📈 Score Distribution</h5>
+	                    </div>
+	                    <div class="card-body">
+	                        <div class="row text-center">
+	                            <div class="col-6 col-md-3 mb-3">
+	                                <div class="badge bg-lime-green fs-6 mb-2 text-white">${ summaryStatistics.score_distribution.excellent }</div>
+	                                <div class="small text-muted">Excellent</div>
+	                            </div>
+	                            <div class="col-6 col-md-3 mb-3">
+	                                <div class="badge bg-info fs-6 mb-2 text-white">${ summaryStatistics.score_distribution.good }</div>
+	                                <div class="small text-muted">Good</div>
+	                            </div>
+	                            <div class="col-6 col-md-3 mb-3">
+	                                <div class="badge bg-warning fs-6 mb-2 text-white">${ summaryStatistics.score_distribution.average }</div>
+	                                <div class="small text-muted">Average</div>
+	                            </div>
+	                            <div class="col-6 col-md-3 mb-3">
+	                                <div class="badge bg-danger fs-6 mb-2 text-white">${ summaryStatistics.score_distribution.below_average }</div>
+	                                <div class="small text-muted">Below Avg</div>
+	                            </div>
+	                        </div>
+	                    </div>
+	                </div>
+	            </div>
+	            <div class="col-md-6">
+	                <div class="card border-0 shadow-sm h-100">
+	                    <div class="card-header bg-light border-0">
+	                        <h5 class="mb-0 fw-bold">💼 Hiring Recommendations</h5>
+	                    </div>
+	                    <div class="card-body">
+	                        <div class="row text-center">
+	                            <div class="col-4 mb-3">
+	                                <div class="badge bg-lime-green fs-6 mb-2 text-white">${ summaryStatistics.recommendations.HIRE }</div>
+	                                <div class="small text-muted">Hire</div>
+	                            </div>
+	                            <div class="col-4 mb-3">
+	                                <div class="badge bg-warning fs-6 mb-2 text-white">${ summaryStatistics.recommendations.CONSIDER }</div>
+	                                <div class="small text-muted">Consider</div>
+	                            </div>
+	                            <div class="col-4 mb-3">
+	                                <div class="badge bg-danger fs-6 mb-2 text-white">${ summaryStatistics.recommendations.REJECT }</div>
+	                                <div class="small text-muted">Reject</div>
+	                            </div>
+	                        </div>
+	                    </div>
+	                </div>
+	            </div>
+	        </div>
+	    `;
+
+	    $("#summaryContainer").html(htmlSummaryContent);
+
+	}
+
+
+	// Toggle filters panel
+	function toggleFilters() {
+	    $('#filtersPanel').slideToggle();
+	}
+
+	// Initialize all filter event listeners
+	function initializeFilters() {
+	    // Recommendation filter
+	    $('#recommendationFilter').on('change', function() {
+	        console.log('Recommendation filter changed:', $(this).val());
+	        applyFilters();
+	    });
+
+	    // OrderBy filter
+	    $('#orderByFilter').on('change', function() {
+	        console.log('OrderBy filter changed:', $(this).val());
+	        applyOrderByFilter();
+	    });
+
+	    // Min score filter (using event delegation for dynamically created elements)
+	    $(document).on('change input', '#minScoreFilter', function() {
+	        var value = $(this).val();
+	        var parsedValue = parseFloat(value) || 0;
+	        console.log('Min score filter changed - Raw value:', value, 'Parsed value:', parsedValue);
+	        applyFilters();
+	    });
+
+	    // Name search filter
+	    $('#nameFilter').on('input keyup', function() {
+	        console.log('Name filter changed:', $(this).val());
+	        applyFilters();
+	    });
+
+	    // Event listeners for dynamically created filter elements
+	    $(document).on('change', '#experienceFilter, #recommendationOrderFilter', function() {
+	        console.log('Dynamic filter changed:', $(this).attr('id'), $(this).val());
+	        applyFilters();
+	    });
+	}
+
+	function applyOrderByFilter() {
+	    var orderByFilterValue = $('#orderByFilter').val();
+	    var labelValue;
+	    var orderByFilterInput;
+
+	    if(orderByFilterValue === "") {
+	        labelValue = "Order By Filter";
+	        orderByFilterInput = `
+	        <select class="form-select form-select-sm">
+	                <option value="">Select a Order By Filter</option>
+	            </select>
+	        `;
+	    } else if(orderByFilterValue === "Score") {
+	        labelValue = "Min Score Filter";
+	        orderByFilterInput = `
+	            <input type="number" class="form-control form-control-sm" id="minScoreFilter" placeholder="Enter min score" min="0" max="100">
+	        `;
+	    } else if(orderByFilterValue === "Experience") {
+	        labelValue = "Experience Level";
+	        orderByFilterInput = `
+	            <select class="form-select form-select-sm" id="experienceFilter">
+	                <option value="">All Levels</option>
+	                <option value="Experienced">Experienced</option>
+	                <option value="Intermediate">Intermediate</option>
+	                <option value="Beginner">Beginner</option>
+	            </select>
+	        `;
+	    } else if(orderByFilterValue === "Recommendation") {
+	        labelValue = "Recommendation";
+	        orderByFilterInput = `
+	            <select class="form-select form-select-sm" id="recommendationOrderFilter">
+	                <option value="">All Recommendations</option>
+	                <option value="HIRE">Hire</option>
+	                <option value="CONSIDER">Consider</option>
+	                <option value="REJECT">Reject</option>
+	            </select>
+	        `;
+	    }
+
+	    $('#orderByFilterLabel').text(labelValue);
+	    $('#orderByFilterInput').html(orderByFilterInput);
+
+	    console.log('Order by filter changed:', orderByFilterValue);
+
+	    // Apply sorting immediately when order by changes
+	    applySorting(orderByFilterValue);
+	}
+
+	// Apply sorting based on selected criteria (descending order only for now)
+	function applySorting(orderBy) {
+	    if (!orderBy) return;
+
+	    // Ascending/Descending functionality - Commented for later use
+	    /*
+	    var sortOrder = $('#sortOrderFilter').val() || 'desc';
+	    var isDescending = sortOrder === 'desc';
+	    */
+	    var isDescending = true; // Always descending for now
+
+	    var $tbody = $('#candidatesTable tbody');
+	    var $rows = $tbody.find('.candidate-row').get();
+
+	    $rows.sort(function(a, b) {
+	        var aVal, bVal;
+
+	        if (orderBy === 'Score') {
+	            aVal = parseFloat($(a).data('score')) || 0;
+	            bVal = parseFloat($(b).data('score')) || 0;
+	            return isDescending ? (bVal - aVal) : (aVal - bVal);
+	        } else if (orderBy === 'Experience') {
+	            var experienceOrder = {'Experienced': 3, 'Intermediate': 2, 'Beginner': 1};
+	            aVal = experienceOrder[$(a).data('experience')] || 0;
+	            bVal = experienceOrder[$(b).data('experience')] || 0;
+	            return isDescending ? (bVal - aVal) : (aVal - bVal);
+	        } else if (orderBy === 'Recommendation') {
+	            var recommendationOrder = {'HIRE': 3, 'CONSIDER': 2, 'REJECT': 1};
+	            aVal = recommendationOrder[$(a).data('recommendation')] || 0;
+	            bVal = recommendationOrder[$(b).data('recommendation')] || 0;
+	            return isDescending ? (bVal - aVal) : (aVal - bVal);
+	        }
+	        return 0;
+	    });
+
+	    $.each($rows, function(index, row) {
+	        $tbody.append(row);
+	    });
+
+	    console.log('Sorted by:', orderBy, '(descending)');
+	}
+
+	// Apply all active filters
+	function applyFilters() {
+	    var recommendationValue = $('#recommendationFilter').val();
+	    var minScoreInput = $('#minScoreFilter');
+	    var minScoreValue = minScoreInput.length ? (parseFloat(minScoreInput.val()) || 0) : 0;
+	    var nameValue = $('#nameFilter').val().toLowerCase();
+	    var experienceValue = $('#experienceFilter').val();
+	    var recommendationOrderValue = $('#recommendationOrderFilter').val();
+
+	    console.log('Debug minScoreFilter element:', minScoreInput.length, 'Value:', minScoreInput.val(), 'Parsed:', minScoreValue);
+
+	    console.log('Applying filters:', {
+	        recommendation: recommendationValue,
+	        minScore: minScoreValue,
+	        name: nameValue,
+	        experience: experienceValue,
+	        recommendationOrder: recommendationOrderValue
+	    });
+
+	    // Debug: Check first few candidates' data
+	    $('.candidate-row').slice(0, 3).each(function() {
+	        var $row = $(this);
+	        var score = parseFloat($row.attr('data-score')) || 0;
+	        var name = $row.attr('data-name') || '';
+	        console.log('Debug candidate:', name, 'Score from data-score:', score, 'Raw data-score:', $row.attr('data-score'));
+	    });
+
+	    var visibleCount = 0;
+	    var totalCount = 0;
+
+	    // Filter each candidate row
+	    $('.candidate-row').each(function() {
+	        totalCount++;
+	        var $row = $(this);
+	        var recommendation = $row.attr('data-recommendation');
+	        var experience = $row.attr('data-experience');
+	        var score = parseFloat($row.attr('data-score')) || 0;
+	        var name = $row.attr('data-name') || '';
+
+	        var show = true;
+
+	        // Apply recommendation filter (from main filter)
+	        if (recommendationValue && recommendation !== recommendationValue) {
+	            show = false;
+	        }
+
+	        // Apply recommendation filter (from order by filter)
+	        if (recommendationOrderValue && recommendation !== recommendationOrderValue) {
+	            show = false;
+	        }
+
+	        // Apply experience filter
+	        if (experienceValue && experience !== experienceValue) {
+	            show = false;
+	        }
+
+	        // Apply minimum score filter (only if value is greater than 0)
+	        if (minScoreValue > 0 && score < minScoreValue) {
+	            console.log('Hiding candidate:', name, 'Score:', score, 'Min required:', minScoreValue);
+	            show = false;
+	        }
+
+	        // Apply name search filter
+	        if (nameValue && !name.includes(nameValue)) {
+	            show = false;
+	        }
+
+	        // Show or hide the row
+	        if (show) {
+	            $row.show();
+	            visibleCount++;
+	        } else {
+	            $row.hide();
+	        }
+	    });
+
+	    // Update count display
+	    updateVisibleCount(visibleCount, totalCount);
+
+	    // Show/hide clear button
+	    var orderByValue = $('#orderByFilter').val();
+	    // Ascending/Descending functionality - Commented for later use
+	    /*
+	    var sortOrderValue = $('#sortOrderFilter').val();
+	    var hasActiveFilters = recommendationValue || minScoreValue > 0 || nameValue ||
+	                        experienceValue || recommendationOrderValue || orderByValue ||
+	                        (sortOrderValue && sortOrderValue !== 'desc'); // Show clear if not default desc
+	    */
+	    var hasActiveFilters = recommendationValue || minScoreValue > 0 || nameValue ||
+	                        experienceValue || recommendationOrderValue || orderByValue;
+	    if (hasActiveFilters) {
+	        $('#clearFiltersBtn').show();
+	    } else {
+	        $('#clearFiltersBtn').hide();
+	    }
+	}
+
+	// Update the visible count display
+	function updateVisibleCount(visible, total) {
+	    if (typeof visible === 'undefined') {
+	        total = $('.candidate-row').length;
+	        visible = $('.candidate-row:visible').length;
+	    }
+
+	    var countDisplay = $('#candidateCount');
+	    if (countDisplay.length === 0) {
+	        $('#candidatesTable thead tr th:first').append(' <small id="candidateCount" class="text-muted"></small>');
+	        countDisplay = $('#candidateCount');
+	    }
+
+	    if (visible === total) {
+	        countDisplay.text('(' + total + ')');
+	    } else {
+	        countDisplay.text('(' + visible + ' of ' + total + ')');
+	    }
+	}
+
+	// Clear all filters
+	function clearFilters() {
+	    console.log('Clearing all filters...');
+	    $('#recommendationFilter').val('');
+	    $('#orderByFilter').val('');
+	    // $('#sortOrderFilter').val('desc'); // Reset to default descending - Commented for later use
+	    $('#minScoreFilter').val('');
+	    $('#nameFilter').val('');
+	    $('#experienceFilter').val('');
+	    $('#recommendationOrderFilter').val('');
+	    $('#clearFiltersBtn').hide();
+
+	    // Reset the order by filter input
+	    $('#orderByFilterLabel').text('Order By Filter');
+	    $('#orderByFilterInput').html(`
+	        <select class="form-select form-select-sm">
+	            <option value="">Select a Order By Filter</option>
+	        </select>
+	    `);
+
+	    // Show all rows
+	    $('.candidate-row').show();
+	    updateVisibleCount();
+	}
+
+	// Show candidate details in modal
+	function showCandidateDetails(candidateEmail) {
+	    const candidate = candidatesData.find(c => c.email === candidateEmail);
+	    if (!candidate) return;
+
+	    const modalBody = document.getElementById('candidateModalBody');
+	    const jobAnalysis = candidate.job_analysis || {};
+	    modalBody.innerHTML = `
+	        <div class="row">
+	            <div class="col-md-6">
+	                <div class="card border-0 bg-light mb-3">
+	                    <div class="card-body">
+	                        <h6 class="fw-bold mb-3">📊 Scores Breakdown</h6>
+	                        <div class="row">
+	                            <div class="col-6 mb-2">
+	                                <small class="text-muted">Final Score</small>
+	                                <div class="fw-bold">${candidate.scores.final_score.toFixed(1)}</div>
+	                            </div>
+	                            <div class="col-6 mb-2">
+	                                <small class="text-muted">Skills Match</small>
+	                                <div class="fw-bold">${candidate.scores.skills_match.toFixed(1)}</div>
+	                            </div>
+	                            <div class="col-6 mb-2">
+	                                <small class="text-muted">Experience</small>
+	                                <div class="fw-bold">${candidate.scores.experience_score.toFixed(1)}</div>
+	                            </div>
+	                            <div class="col-6 mb-2">
+	                                <small class="text-muted">Education</small>
+	                                <div class="fw-bold">${candidate.scores.education_score.toFixed(1)}</div>
+	                            </div>
+	                            <div class="col-6 mb-2">
+	                                <small class="text-muted">Keywords</small>
+	                                <div class="fw-bold">${candidate.scores.keywords_match.toFixed(1)}</div>
+	                            </div>
+	                            <div class="col-6 mb-2">
+	                                <small class="text-muted">Growth Potential</small>
+	                                <div class="fw-bold">${candidate.scores.growth_potential.toFixed(1)}</div>
+	                            </div>
+	                        </div>
+	                    </div>
+	                </div>
+	            </div>
+
+	            <div class="col-md-6">
+	                <div class="card border-0 bg-light mb-3">
+	                    <div class="card-body">
+	                        <h6 class="fw-bold mb-3">💼 Recommendation</h6>
+	                        <div class="mb-2">
+	                            <span class="badge ${candidate.recommendation.decision === 'HIRE' ? 'bg-lime-green' :
+	                                candidate.recommendation.decision === 'CONSIDER' ? 'bg-warning' : 'bg-danger'} fs-6 text-white">
+	                                ${candidate.recommendation.decision}
+	                            </span>
+	                            <span class="badge bg-secondary ms-2 text-white">${candidate.recommendation.confidence}</span>
+	                        </div>
+	                        <p class="small mb-0">${candidate.recommendation.reason}</p>
+	                    </div>
+	                    <div class="card-body">
+	                        <h6 class="fw-bold mb-3">Contact Details</h6>
+	                        <div class="mb-2 contact-details">
+	                            <div class="contact-item">
+	                                <span class="label">Email:</span>
+	                                <span class="value">${candidate.email}</span>
+	                            </div>
+	                            <div class="contact-item">
+	                                <span class="label">Contact Number:</span>
+	                                <span class="value">${candidate.contact_number}</span>
+	                            </div>
+	                        </div>
+	                    </div>
+	                </div>
+	            </div>
+	        </div>
+
+	        <div class="row">
+	            <div class="col-md-4">
+	                <div class="card border-0 bg-light mb-3">
+	                    <div class="card-body">
+	                        <h6 class="fw-bold mb-3">🛠️ Skills Analysis</h6>
+	                        <div class="mb-2">
+	                            <small class="text-muted">Match Percentage</small>
+	                            <div class="fw-bold text-primary">${candidate.skills_analysis.skill_match_percentage.toFixed(1)}%</div>
+	                        </div>
+	                        ${candidate.skills_analysis.matching_skills.length > 0 ? `
+	                            <div class="mb-2">
+	                                <small class="text-muted">Matching Skills</small>
+	                                <div>${candidate.skills_analysis.matching_skills.map(skill =>
+	                                    `<span class="badge bg-lime-green me-1 mb-1 text-white">${skill}</span>`
+	                                ).join('')}</div>
+	                            </div>
+	                        ` : ''}
+	                        ${candidate.skills_analysis.missing_skills.length > 0 ? `
+	                            <div>
+	                                <small class="text-muted">Missing Skills</small>
+	                                <div>${candidate.skills_analysis.missing_skills.map(skill =>
+	                                    `<span class="badge bg-danger me-1 mb-1 text-white">${skill}</span>`
+	                                ).join('')}</div>
+	                            </div>
+	                        ` : ''}
+	                    </div>
+	                </div>
+	            </div>
+
+	            <div class="col-md-4">
+	                <div class="card border-0 bg-light mb-3">
+	                    <div class="card-body">
+	                        <h6 class="fw-bold mb-3">💼 Experience Analysis</h6>
+	                        <div class="mb-2">
+	                            <small class="text-muted">Level</small>
+	                            <div class="fw-bold">${candidate.experience_analysis.experience_level}</div>
+	                        </div>
+	                        ${candidate.experience_analysis.matching_experience.length > 0 ? `
+	                            <div class="mb-2">
+	                                <small class="text-muted">Matching Experience</small>
+	                                <ul class="small mb-0">
+	                                    ${candidate.experience_analysis.matching_experience.map(exp =>
+	                                        `<li>${exp}</li>`
+	                                    ).join('')}
+	                                </ul>
+	                            </div>
+	                        ` : ''}
+	                        ${candidate.experience_analysis.experience_gaps.length > 0 ? `
+	                            <div>
+	                                <small class="text-muted">Experience Gaps</small>
+	                                <ul class="small mb-0">
+	                                    ${candidate.experience_analysis.experience_gaps.map(gap =>
+	                                        `<li class="text-danger">${gap}</li>`
+	                                    ).join('')}
+	                                </ul>
+	                            </div>
+	                        ` : ''}
+	                    </div>
+	                </div>
+	            </div>
+
+	            <div class="col-md-4">
+	                <div class="card border-0 bg-light mb-3">
+	                    <div class="card-body">
+	                        <h6 class="fw-bold mb-3">🎓 Education Analysis</h6>
+	                        <div class="mb-2">
+	                            <small class="text-muted">Level</small>
+	                            <div class="fw-bold">${candidate.education_analysis.education_level}</div>
+	                        </div>
+	                        ${candidate.education_analysis.education_highlights.length > 0 ? `
+	                            <div>
+	                                <small class="text-muted">Highlights</small>
+	                                <ul class="small mb-0">
+	                                    ${candidate.education_analysis.education_highlights.map(highlight =>
+	                                        `<li>${highlight}</li>`
+	                                    ).join('')}
+	                                </ul>
+	                            </div>
+	                        ` : ''}
+	                    </div>
+	                </div>
+	            </div>
+	        </div>
+
+	        ${candidate.assessment.strengths.length > 0 || candidate.assessment.weaknesses.length > 0 ? `
+	            <div class="row">
+	                <div class="col-12">
+	                    <div class="card border-0 bg-light mb-3">
+	                        <div class="card-body">
+	                            <h6 class="fw-bold mb-3">📋 Assessment</h6>
+	                            <div class="row">
+	                                ${candidate.assessment.strengths.length > 0 ? `
+	                                    <div class="col-md-6">
+	                                        <small class="text-muted">Strengths</small>
+	                                        <ul class="small text-success">
+	                                            ${candidate.assessment.strengths.map(strength =>
+	                                                `<li>${strength}</li>`
+	                                            ).join('')}
+	                                        </ul>
+	                                    </div>
+	                                ` : ''}
+	                                ${candidate.assessment.weaknesses.length > 0 ? `
+	                                    <div class="col-md-6">
+	                                        <small class="text-muted">Weaknesses</small>
+	                                        <ul class="small text-danger">
+	                                            ${candidate.assessment.weaknesses.map(weakness =>
+	                                                `<li>${weakness}</li>`
+	                                            ).join('')}
+	                                        </ul>
+	                                    </div>
+	                                ` : ''}
+	                            </div>
+	                        </div>
+	                    </div>
+	                </div>
+	            </div>
+	        ` : ''}
+
+	        <div class="row">
+	            <div class="col">
+	                <div class="card border-0 bg-light mb-3">
+	                    <div class="card-body">
+	                        <h6 class="fw-bold mb-3">🗂️ Job Analysis</h6>
+	                        <div class="mb-2">
+	                            <small class="text-muted">Fresher:</small>
+	                            <div class="fw-bold">${jobAnalysis.fresher ? 'Yes' : 'No'}</div>
+	                        </div>
+	                        <div class="row">
+	                            <div class="mb-2 col">
+	                                <small class="text-muted">First Job Start Year:</small>
+	                                <div class="fw-bold"> ${jobAnalysis.first_job_start_year != 0 ? jobAnalysis.first_job_start_year : 'N/A' }</div>
+	                            </div>
+	                            <div class="mb-2 col">
+	                                <small class="text-muted">Last Job End Year:</small>
+	                                <div class="fw-bold">${jobAnalysis.last_job_end_year != 0 ? jobAnalysis.last_job_end_year :'N/A'}</div>
+	                            </div>
+	                            <div class="mb-2 col">
+	                                <small class="text-muted">Total Jobs Count:</small>
+	                                <div class="fw-bold">${jobAnalysis.total_jobs_count != 0 ? jobAnalysis.total_jobs_count :'N/A'}</div>
+	                            </div>
+	                        </div>
+	                        <div class="mb-2">
+	                            <small class="text-muted">Average Job Change:</small>
+	                            <div class="fw-bold">${jobAnalysis.average_job_change}</div>
+	                        </div>
+	                    </div>
+	                </div>
+	            </div>
+	        </div>
+
+	        <div class="row">
+	            <div class="col">
+	                <div class="card border-0 bg-light mb-3">
+	                <div class="card-body">
+	                    <h6 class="fw-bold mb-3">
+	                    <i class="bi bi-info-circle"></i> Additional Details
+	                    </h6>
+	                    <div class="row" style="max-height: 300px; overflow-y: auto;">
+	                        ${(() => {
+	                            const candidateAttributes = attributesByCandidate[candidate.candidate_name] || [];
+	                            if (candidateAttributes.length === 0) {
+	                                return '<div class="mb-2 col-12"><hr><small class="text-muted"><i class="bi bi-info-circle"></i> No additional details found for this candidate.</small></div>';
+	                            }
+
+	                            let attributesHtml = '';
+	                            candidateAttributes.forEach(attr => {
+	                                attributesHtml += `
+	                                    <div class="mb-2 col-12 d-flex justify-content-between align-items-start">
+	                                        <small class="text-muted" style="flex: 0 0 40%;">${attr.attribute_name}:</small>
+	                                        <div class="fw-bold text-end" style="flex: 1; word-break: break-word;">${attr.attribute_value}</div>
+	                                    </div>
+	                                `;
+	                            });
+	                            return attributesHtml;
+	                        })()}
+
+	                    </div>
+	                </div>
+	            </div>
+	        </div>
+
+	        <div class="row">
+	            <div class="col-md-6">
+	                <div class="card border-0 bg-light mb-3">
+	                    <div class="card-body">
+	                        <h6 class="fw-bold mb-3">🎯 Hiring Insights</h6>
+	                        <div class="mb-2">
+	                            <small class="text-muted">Salary Alignment</small>
+	                            <div class="fw-bold">${candidate.hiring_insights.salary_expectation_alignment}</div>
+	                        </div>
+	                        <div class="mb-2">
+	                            <small class="text-muted">Onboarding Priority</small>
+	                            <div class="fw-bold">${candidate.hiring_insights.onboarding_priority}</div>
+	                        </div>
+	                        ${candidate.hiring_insights.interview_focus_areas.length > 0 ? `
+	                            <div>
+	                                <small class="text-muted">Interview Focus Areas</small>
+	                                <div>${candidate.hiring_insights.interview_focus_areas.map(area =>
+	                                    `<span class="badge bg-info me-1 mb-1 text-white">${area}</span>`
+	                                ).join('')}</div>
+	                            </div>
+	                        ` : ''}
+	                    </div>
+	                </div>
+	            </div>
+
+	            <div class="col-md-6">
+	                <div class="card border-0 bg-light mb-3">
+	                    <div class="card-body">
+	                        <h6 class="fw-bold mb-3">📄 File Information</h6>
+	                        <div class="small">
+	                            <div class="mb-1"><strong>Filename:</strong> ${candidate.filename}</div>
+	                            <div class="mb-1"><strong>Word Count:</strong> ${candidate.metadata.word_count}</div>
+	                            <div class="mb-1"><strong>Processing Time:</strong> ${candidate.metadata.processing_time.toFixed(2)}s</div>
+	                            <div class="mb-1"><strong>Processed At:</strong> ${new Date(candidate.metadata.processed_at).toLocaleString()}</div>
+	                        </div>
+	                        ${candidate.summary ? `
+	                            <div class="mt-2">
+	                                <small class="text-muted">Summary</small>
+	                                <p class="small mb-0">${candidate.summary}</p>
+	                            </div>
+	                        ` : ''}
+	                    </div>
+	                </div>
+	            </div>
+	        </div>
+	    `;
+
+	    document.getElementById('candidateModalLabel').textContent = `${candidate.candidate_name} - Detailed Analysis`;
+	    $('#candidateModal').modal('show');
+	}
+
+	function showCustomAttributesForm(candidate_name , candidate_filename) {
+	    $('#customAttributesModalLabel').text('Add Details for ' + candidate_name);
+
+	    // 2. Set the value of the hidden input field.
+	    // This is useful for form submission.
+	    $('#candidateIdentifierByName').val(candidate_name);
+	    $('#candidateIdentifierByFileName').val(candidate_filename);
+
+	    $('#dynamic-fields-container').empty();
+
+	    addNewDetailRow();
+
+	    $('#customAttributesModal').modal('show');
+	}
+
+	// Function to add a new key-value pair row
+	    const addNewDetailRow = () => {
+	        // Create the HTML for the new row. No need for unique IDs for removal with jQuery.
+	        const container = $('#dynamic-fields-container');
+
+	        const newRowHTML = `
+	            <div class="input-group mb-3">
+	                <input type="text" class="form-control" name="custom_key" placeholder="Field Name" required>
+	                <input type="text" class="form-control" name="custom_value" placeholder="Value" required>
+	                <button class="btn btn-outline-danger remove-row-btn" type="button">Remove</button>
+	            </div>
+	        `;
+	        // Append the new row to the container
+	        container.append(newRowHTML);
+	    };
+</script>
+{% endblock scripts %} {% block content %}
+<br /><br />
+<div class="container-fluid mt-4">
+	<!-- Header Section -->
+	<div class="row mb-4">
+		<div class="col-12">
+			<div class="card border-0 shadow-sm bg-primary text-white">
+				<div class="card-body">
+					<div
+						class="d-flex justify-content-between align-items-center"
+					>
+						<div>
+							<h2 class="mb-1 fw-bold">
+								📊 Resume Analysis Report
+							</h2>
+							<p class="mb-0 opacity-75">
+								{{job_title}} - {{job_code}}
+							</p>
+						</div>
+						<div>
+							<button
+								class="btn btn-light btn-sm mt-auto"
+								id="openModalBtn"
+							>
+								New Analysis
+							</button>
+							<button
+								class="btn btn-danger btn-sm mt-auto ms-2"
+								id="stopAnalysisBtn"
+								style="display: none"
+							>
+								<i class="bi bi-stop-circle-fill me-1"></i>Stop
+								Analysis
+							</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+
+	<div
+		id="candidatesContainer"
+		style="{% if not file_content.candidates %}display: none;{% endif %}"
+	>
+
+		<div id="summaryContainer"></div>
+
+		<!-- Job Description -->
+		<div class="row mb-4">
+			<div class="col-12">
+				<div class="card border-0 shadow-sm">
+					<div class="card-header bg-light border-0">
+						<h5 class="mb-0 fw-bold">📋 Job Description</h5>
+					</div>
+					<div class="card-body">
+						<div
+							class="bg-light p-3 rounded job-description-content"
+						>
+							 {{ file_content.job_description_html |safe }}
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Candidates Table -->
+		<div class="row mb-4" id="candidates-table" style="min-height: 80vh">
+			<div class="col-12">
+				<div class="card border-0 shadow-sm">
+					<div
+						class="card-header bg-light border-0 d-flex justify-content-between align-items-center"
+					>
+						<h5 class="mb-0 fw-bold">👥 All Candidates</h5>
+						<div>
+							<button
+								class="btn btn-sm btn-outline-secondary"
+								onclick="toggleFilters()"
+							>
+								<i class="bi bi-funnel"></i> Filters
+							</button>
+							<button
+								class="btn btn-sm btn-outline-warning"
+								onclick="clearFilters()"
+								style="display: none"
+								id="clearFiltersBtn"
+							>
+								<i class="bi bi-x-circle"></i> Clear
+							</button>
+						</div>
+					</div>
+
+					<!-- Filters Panel -->
+					<div
+						id="filtersPanel"
+						class="card-body border-bottom bg-light"
+						style="display: none"
+					>
+						<div class="row">
+							<div class="col-md-2">
+								<label class="form-label small">Order By</label>
+								<select
+									class="form-select form-select-sm"
+									id="orderByFilter"
+								>
+									<option value="">None</option>
+									<option value="Score">Score</option>
+									<option value="Experience">
+										Experience
+									</option>
+									<option value="Recommendation">
+										Recommendation
+									</option>
+								</select>
+							</div>
+							<div class="col-md-3" id="orderByFilterOptionsDiv">
+								<label
+									class="form-label small"
+									id="orderByFilterLabel"
+									>Order By Filter</label
+								>
+								
+								<div id="orderByFilterInput">
+									<select class="form-select form-select-sm">
+										<option value="">
+											Select a Order By Filter
+										</option>
+									</select>
+								</div>
+							</div>
+							<div class="col-md-3">
+								<label class="form-label small"
+									>Search Name</label
+								>
+								<input
+									type="text"
+									class="form-control form-control-sm"
+									id="nameFilter"
+									placeholder="Search candidate..."
+								/>
+							</div>
+							
+						</div>
+					</div>
+
+					<div class="card-body p-0">
+						<!-- CLUSTERIZE.JS TABLE -->
+						<div
+							id="scrollArea"
+							style="max-height: 600px; overflow-y: auto"
+						>
+							<table
+								class="table table-hover mb-0"
+								id="candidatesTable"
+							>
+								<thead class="table-light">
+									<tr>
+										<th class="border-0">Candidate</th>
+										<th class="border-0">Score</th>
+										<th class="border-0">Skills Match</th>
+										<th class="border-0">Experience</th>
+										<th class="border-0">Recommendation</th>
+										<th class="border-0">Actions</th>
+									</tr>
+								</thead>
+								<tbody id="contentArea">
+									<!-- Rows injected by Clusterize.js -->
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<h1
+		class="text-center text-danger p-3"
+		id="no-analysis-found"
+		style="{% if file_content.candidates %}display: none;{% endif %}"
+	>
+		No Analysis Found.
+	</h1>
+</div>
+
+<!-- Custom Attributes Modal -->
+<div
+	class="modal fade"
+	id="customAttributesModal"
+	tabindex="-1"
+	aria-labelledby="customAttributesModalLabel"
+	aria-hidden="true"
+>
+	<div class="modal-dialog modal-xl">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="customAttributesModalLabel">
+					Add Details
+				</h5>
+				<button
+					type="button"
+					class="btn-close"
+					data-bs-dismiss="modal"
+					aria-label="Close"
+				></button>
+			</div>
+			<div class="modal-body" id="customAttributesModalBody">
+				<!-- Form to hold dynamic fields -->
+				<form id="dynamic-form">
+					<input
+						type="hidden"
+						id="candidateIdentifierByName"
+						name="candidate_name"
+						value=""
+					/>
+					<input
+						type="hidden"
+						id="candidateIdentifierByFileName"
+						name="candidate_name"
+						value=""
+					/>
+					<!-- Container where new rows will be injected -->
+					<div id="dynamic-fields-container">
+						<!-- Initial row can be added here if needed -->
+					</div>
+
+					<!-- Button to add a new row of fields -->
+					<div
+						class="d-flex justify-content-end border-top pt-3 mt-3"
+					>
+						<button
+							type="button"
+							class="btn btn-success btn-sm"
+							id="addFieldBtn"
+						>
+							+ Add Field
+						</button>
+					</div>
+
+					<!-- Static submit button at the end of the form -->
+					<div class="modal-footer mt-4">
+						<button
+							type="button"
+							class="btn btn-secondary"
+							data-bs-dismiss="modal"
+						>
+							Close
+						</button>
+						<button type="submit" class="btn btn-primary">
+							Add Details
+						</button>
+					</div>
+				</form>
+			</div>
+		</div>
+	</div>
+</div>
+<!-- Candidate Details Modal -->
+<div
+	class="modal fade"
+	id="candidateModal"
+	tabindex="-1"
+	aria-labelledby="candidateModalLabel"
+	aria-hidden="true"
+>
+	<div class="modal-dialog modal-xl">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="candidateModalLabel">
+					Candidate Details
+				</h5>
+				<button
+					type="button"
+					class="btn-close"
+					data-bs-dismiss="modal"
+					aria-label="Close"
+				></button>
+			</div>
+			<div class="modal-body" id="candidateModalBody">
+				<!-- Content will be populated by JavaScript -->
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- Modal -->
+<div
+	class="modal fade"
+	id="myModal"
+	tabindex="-1"
+	aria-labelledby="myModalLabel"
+	aria-hidden="true"
+>
+	<div class="modal-dialog modal-md">
+		<div class="modal-content border-0 shadow">
+			<div class="modal-header bg-primary text-white">
+				<h5 class="modal-title mb-0" id="myModalLabel">
+					Resume Analysis in Progress
+				</h5>
+				<button
+					type="button"
+					class="btn-close btn-close-white"
+					data-bs-dismiss="modal"
+					aria-label="Close"
+				></button>
+			</div>
+			<div
+				class="modal-body d-flex flex-column align-items-center text-center py-4"
+			>
+				<div class="spinner-border text-primary mb-3" role="status">
+					<span class="visually-hidden"></span>
+				</div>
+				<p class="fw-semibold mb-0">
+					Started resume analysis for the job description.<br />
+					Waiting for it to complete...
+				</p>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- Simple Progress Popup -->
+<div
+	id="progressPopup"
+	class="position-fixed"
+	style="
+		bottom: 30px;
+		right: 30px;
+		z-index: 9999;
+		min-width: 320px;
+		max-width: 380px;
+		display: none;
+		background: #2c3e50;
+		border-radius: 12px;
+		box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+		color: white;
+		font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+		border: 2px solid #3498db;
+	"
+>
+	<!-- Header -->
+	<div class="d-flex align-items-center p-3">
+		<div class="me-3">
+			<i id="analysisIcon" class="bi bi-cpu-fill fs-4 text-info"></i>
+		</div>
+		<div class="flex-grow-1">
+			<h6 class="mb-1 fw-bold">Resume Analysis</h6>
+			<small class="text-light opacity-75" id="analysisStatus"
+				>Processing...</small
+			>
+		</div>
+		<button
+			type="button"
+			class="btn-close btn-close-white opacity-50"
+			onclick="hideProgressPopup()"
+		></button>
+	</div>
+
+	<!-- Message Only (for already analyzed) -->
+	<div id="messageOnly" class="px-3 pb-3" style="display: none">
+		<div class="text-center">
+			<p class="mb-0" id="simpleMessage">
+				All resumes have been analyzed.
+			</p>
+		</div>
+	</div>
+
+	<!-- Progress Content (for active analysis) -->
+	<div id="progressContent" class="px-3 pb-3">
+		<!-- Progress Bar -->
+		<div class="mb-3">
+			<div class="d-flex justify-content-between align-items-center mb-2">
+				<span class="small">Progress</span>
+				<span id="progressPercentage" class="badge bg-info">0%</span>
+			</div>
+			<div
+				class="progress"
+				style="height: 6px; background-color: rgba(255, 255, 255, 0.2)"
+			>
+				<div
+					id="progressBar"
+					class="progress-bar bg-info"
+					style="width: 0%; transition: width 0.5s ease"
+				></div>
+			</div>
+		</div>
+
+		<!-- Batch Info -->
+		<div class="d-flex justify-content-between align-items-center">
+			<span class="small"
+				>Batch: <span id="currentBatch">0</span>/<span id="totalBatches"
+					>0</span
+				></span
+			>
+		</div>
+	</div>
+</div>
+
+<style>
+	/* Simple static styles */
+
+	/* Slide animations */
+	@keyframes slideInUp {
+		from {
+			transform: translateY(100px);
+			opacity: 0;
+		}
+		to {
+			transform: translateY(0);
+			opacity: 1;
+		}
+	}
+
+	@keyframes slideOutDown {
+		from {
+			transform: translateY(0);
+			opacity: 1;
+		}
+		to {
+			transform: translateY(100px);
+			opacity: 0;
+		}
+	}
+
+	/* Popup states */
+	.popup-show {
+		animation: slideInUp 0.3s ease-out forwards !important;
+		display: block !important;
+	}
+
+	.popup-hide {
+		animation: slideOutDown 0.3s ease-in forwards !important;
+	}
+
+	/* Active analysis state */
+	.analysis-active {
+		border-color: #3498db !important;
+	}
+
+	/* Completed state */
+	.analysis-complete {
+		border-color: #27ae60 !important;
+		box-shadow: 0 6px 20px rgba(39, 174, 96, 0.3) !important;
+	}
+
+	.analysis-complete #analysisIcon {
+		color: #27ae60 !important;
+	}
+</style>
+
+<style>
+	#progressPopup {
+		animation: slideInRight 0.5s ease-out;
+	}
+
+	@keyframes slideInRight {
+		from {
+			transform: translateX(100%);
+			opacity: 0;
+		}
+		to {
+			transform: translateX(0);
+			opacity: 1;
+		}
+	}
+
+	#customAttributesModalBody {
+		height: 80vh;
+	}
+
+	.bg-lime-green {
+		background-color: #32cd32 !important; /* This is the hex code for LimeGreen */
+		color: white !important; /* White text provides good contrast */
+	}
+
+	.contact-details {
+		margin-bottom: 1rem;
+	}
+
+	.contact-item {
+		margin-bottom: 0.5rem;
+	}
+
+	.contact-item .label {
+		font-weight: bold;
+		margin-right: 0.5rem;
+	}
+
+	.contact-item .value {
+		font-weight: normal;
+	}
+
+	#no-analysis-found {
+		height: 60vh;
+	}
+
+	/* Override global p tag centering for job description */
+	.job-description-content p {
+		text-align: left !important;
+	}
+</style>
+
+{% endblock content %}

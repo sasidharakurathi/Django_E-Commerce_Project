@@ -150,42 +150,34 @@ static/               # Static assets
 
 ## 🧪 Testing & Quality
 
-### Code Quality
-- **PEP 8 Compliance**: Python coding standards
 - **Error Handling**: Comprehensive exception handling
-- **Input Validation**: Secure input processing
-- **Code Organization**: Clean, modular architecture
 
-### Security Testing
-- **Vulnerability Assessment**: Security best practices
-- **Input Sanitization**: XSS and injection prevention
-- **Authentication Testing**: Secure login mechanisms
-- **Data Protection**: Encrypted sensitive data
+### Backend (Django)
 
-## 🔮 Future Enhancements
+ecommerce/              # Main project configuration
+|-- settings.py         # Project settings (uses environment variables via .env)
+|-- urls.py             # Main URL routing
+|-- wsgi.py             # WSGI configuration
 
-### Planned Features
-- **Mobile App**: React Native mobile application
-- **API Expansion**: RESTful API for third-party integration
-- **Advanced Analytics**: Machine learning insights
-- **Multi-language Support**: Internationalization
-- **Social Login**: OAuth integration
+ecom/                   # Main application
+|-- models.py           # Database models (Customer, Product, Orders, etc.)
+|-- views.py            # Business logic and view functions
+|-- forms.py            # Django forms for user input
+|-- admin.py            # Admin interface configuration
+|-- FaceRecognition/    # Face recognition module
+    |-- capture_images.py    # Image capture functionality
+    |-- encode_faces.py      # Face encoding generation
+    |-- live_recognition.py  # Real-time recognition
 
-### Technical Improvements
-- **Microservices**: Service-oriented architecture
-- **Real-time Features**: WebSocket integration
-- **Advanced Caching**: Redis cluster setup
-- **Monitoring**: Application performance monitoring
+### Frontend
 
-## 📊 Project Statistics
-
-- **Lines of Code**: ~5,000+ lines
-- **Files**: 50+ files
 - **Models**: 8 database models
 - **Views**: 25+ view functions
 - **Templates**: 30+ HTML templates
 - **Features**: 20+ major features
 
+
+static/               # Static assets
 ## 🎓 Learning Outcomes
 
 This project demonstrates proficiency in:

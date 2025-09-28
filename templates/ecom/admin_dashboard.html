@@ -20,6 +20,7 @@
             <th>Shipment Address</th>
             <th>Product Name</th>
             <th>Product Picture</th>
+            <th>Quantity</th>
             <th>Status</th>
 
           </tr>
@@ -35,12 +36,14 @@
           {% for p in product %}
           <td> {{p.name}}</td>
           <td>
-            {% if p.product_image %}
-            <img src="{{ p.product_image.url }}" alt="Product Image" height="40px" width="40px" />
+            {% if p.get_image_url %}
+            <img src="{{ p.get_image_url }}" alt="Product Image" height="40px" width="40px" />
             {% else %}
             <img src="{% static 'images/default-product.png' %}" alt="Product Image" height="40px" width="40px" />
             {% endif %}
           </td>
+
+          <td>{{order.quantity}}</td>
 
           {% if order.status == 'Pending'%}
           <td> <span class="label label-info">{{order.status}}</span></td>

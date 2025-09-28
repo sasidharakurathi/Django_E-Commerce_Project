@@ -1,0 +1,121 @@
+{% extends 'ecom/admin_base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid my-4">
+    <br><br>
+    <h2 class="mb-4 text-center text-primary fw-bold">Stripe Payment Logs</h2>
+    
+    {% if stripe_logs %}
+    <div class="table-responsive shadow-sm">
+        <table class="table table-bordered table-hover logs-table">
+            <thead class="table-primary">
+                <tr>
+                    <th>ID</th>
+                    <th>Stripe ID</th>
+                    <th>Amount</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Transaction ID</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in stripe_logs %}
+                <tr>
+                    <td>{{ log.id }}</td>
+                    <td>{{ log.stripe_id }}</td>
+                    <td>₹ {{ log.amount }}</td>
+                    <td>{{ log.name }}</td>
+                    <td>{{ log.email }}</td>
+                    <td>{{ log.transaction_id }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+        <div class="alert alert-info text-center">No stripe payment logs found.</div>
+    {% endif %}
+</div>
+
+{% if stripe_logs.has_other_pages %}
+<div class="pagination-container text-center my-4">
+    <nav aria-label="Payment Logs pagination">
+        <ul class="pagination justify-content-center">
+
+            {% if stripe_logs.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1">First</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ stripe_logs.previous_page_number }}">Previous</a>
+                </li>
+            {% endif %}
+
+            {% for num in stripe_logs.paginator.page_range %}
+                {% if stripe_logs.number == num %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ num }}</span>
+                    </li>
+                {% elif num > stripe_logs.number|add:'-3' and num < stripe_logs.number|add:'3' %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+
+            {% if stripe_logs.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ stripe_logs.next_page_number }}">Next</a>
+                </li>
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ stripe_logs.paginator.num_pages }}">Last</a>
+                </li>
+            {% endif %}
+
+        </ul>
+    </nav>
+
+    <div class="pagination-info mt-3 text-primary fw-bold">
+        Page {{ stripe_logs.number }} of {{ stripe_logs.paginator.num_pages }}
+        (Total: {{ stripe_logs.paginator.count }} Logs)
+    </div>
+</div>
+{% endif %}
+
+<style>
+.logs-table td {
+    word-break: break-word;
+    max-width: 200px;  /* adjust width */
+    white-space: normal;
+}
+
+
+/* Blue themed table */
+.logs-table {
+    border: 2px solid #0d6efd;
+}
+
+.logs-table thead {
+    background: #0d6efd !important;
+    color: white !important;
+    font-weight: bold;
+}
+
+.logs-table tbody tr:hover {
+    background-color: #e7f1ff !important;
+    transition: 0.3s ease;
+}
+
+.pagination .page-link {
+    color: #0d6efd;
+    border: 1px solid #0d6efd;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+</style>
+
+{% endblock content %}
