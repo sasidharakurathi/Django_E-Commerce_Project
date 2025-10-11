@@ -340,8 +340,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 👨‍💻 Author
 
 **Akurathi Sasidhar**
-- GitHub: [@yourusername](https://github.com/yourusername)
-- Email: your-email@example.com
+- GitHub: [@sasidharakurathi](https://github.com/sasidharakurathi)
+- Email: 22kt1a0595@gmail.com
 
 ## 🙏 Acknowledgments
 
