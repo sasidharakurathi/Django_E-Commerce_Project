@@ -208,10 +208,55 @@ django-ecommerce-face-recognition/
 ### Common Issues
 
 #### Face Recognition Installation
-```bash
-# If dlib installation fails on Windows
-pip install dlib-binary
+# If dlib installation fails on Windows,
 
+This guide helps you install the dlib library for Python on Windows systems (recommended for Python 3.7–3.13).  
+It uses official CMake and Visual Studio Build Tools to avoid build errors.
+
+## Step 1: Install CMake
+
+1. **Download CMake** from [cmake.org/download](https://cmake.org/download/)
+2. Run the installer.
+3. During installation, **check "Add CMake to the system PATH for all users"**.
+4. Confirm installation:
+
+
+## Step 2: Install Microsoft Build Tools
+
+1. **Download Visual Studio Build Tools** from [visualstudio.microsoft.com/visual-cpp-build-tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+2. Run the installer.
+3. In the setup dialog, select **Desktop development with C++**.
+4. Complete installation.
+
+## Step 3: Create and Activate a Python Virtual Environment (Optional but recommended)
+
+    python -m venv dlib-env
+    dlib-env\Scripts\activate # On Windows
+
+
+## Step 4: Upgrade pip
+    pip install --upgrade pip
+
+## Step 5: Install dlib
+    pip install dlib
+
+## Step 6: Test dlib Installation
+
+    import dlib
+    print("dlib version:", dlib.version)
+    print("dlib imported successfully!")
+
+
+## Troubleshooting
+
+- If you see errors related to CMake, make sure it's installed from the official source and added to your PATH.
+- For errors regarding Visual C++ or "failed to build wheel", ensure the Visual Studio Build Tools were installed with the "Desktop development with C++" option.
+- If pip install still fails, consider installing dlib using a pre-built wheel specific to your Python version (see [this GitHub repo](https://github.com/z-mahmud22/Dlib_Windows_Python3.x)).
+
+---
+
+
+```bash
 # If OpenCV issues occur
 pip uninstall opencv-python
 pip install opencv-python-headless
